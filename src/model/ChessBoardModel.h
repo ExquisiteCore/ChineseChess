@@ -6,6 +6,7 @@
 #include <QPoint>
 #include "../core/Position.h"
 #include "../core/ChessRules.h"
+#include "../core/GameController.h"
 
 // 棋盘数据模型（适配层，连接 C++ 核心和 QML UI）
 class ChessBoardModel : public QAbstractListModel
@@ -16,6 +17,9 @@ class ChessBoardModel : public QAbstractListModel
     Q_PROPERTY(QString fenString READ fenString NOTIFY fenStringChanged)
     Q_PROPERTY(QString gameStatus READ gameStatus NOTIFY gameStatusChanged)
     Q_PROPERTY(QList<QPoint> validMovePositions READ validMovePositions NOTIFY validMovePositionsChanged)
+    Q_PROPERTY(bool canUndo READ canUndo NOTIFY canUndoChanged)
+    Q_PROPERTY(bool canRedo READ canRedo NOTIFY canRedoChanged)
+    Q_PROPERTY(int moveCount READ moveCount NOTIFY moveCountChanged)
 
 public:
     enum ChessPieceRoles {
@@ -45,6 +49,10 @@ public:
 
     QList<QPoint> validMovePositions() const { return m_validMovePositions; }
 
+    bool canUndo() const;
+    bool canRedo() const;
+    int moveCount() const;
+
     // 获取 Position 对象
     Position& position() { return m_position; }
     const Position& position() const { return m_position; }
@@ -61,6 +69,12 @@ public:
     Q_INVOKABLE bool movePieceToPosition(int fromIndex, int toRow, int toCol);
     Q_INVOKABLE QList<int> getValidMoves(int index) const;
 
+    // 游戏控制
+    Q_INVOKABLE void undoMove();
+    Q_INVOKABLE void redoMove();
+    Q_INVOKABLE void startNewGame();
+    Q_INVOKABLE QString exportGameHistory() const;
+
 signals:
     void isRedTurnChanged();
     void liftedPieceIndexChanged();
@@ -69,6 +83,9 @@ signals:
     void gameStatusChanged();
     void gameOver(const QString &result);  // 游戏结束信号
     void validMovePositionsChanged();       // 可走位置改变信号
+    void canUndoChanged();                  // 悔棋可用性改变
+    void canRedoChanged();                  // 重做可用性改变
+    void moveCountChanged();                 // 步数改变
 
 private:
     void rebuildPiecesList();  // 从 Position 重建棋子列表
@@ -80,6 +97,7 @@ private:
     int m_liftedPieceIndex;           // 当前悬浮的棋子索引
     QString m_gameStatus;             // 游戏状态文本
     QList<QPoint> m_validMovePositions; // 当前棋子的可走位置列表
+    GameController m_gameController;   // 游戏控制器
 };
 
 #endif // CHESSBOARDMODEL_H

@@ -5,10 +5,19 @@ ChessBoardModel::ChessBoardModel(QObject *parent)
     : QAbstractListModel(parent)
     , m_liftedPieceIndex(-1)
     , m_gameStatus("进行中")
+    , m_gameController(this)
 {
     // 初始化为开局局面
     m_position.board().initializeStartPosition();
     rebuildPiecesList();
+
+    // 连接游戏控制器信号
+    connect(&m_gameController, &GameController::undoAvailableChanged, this, &ChessBoardModel::canUndoChanged);
+    connect(&m_gameController, &GameController::redoAvailableChanged, this, &ChessBoardModel::canRedoChanged);
+    connect(&m_gameController, &GameController::moveHistoryChanged, this, &ChessBoardModel::moveCountChanged);
+
+    // 开始新游戏（传入当前局面的FEN）
+    m_gameController.startNewGame(m_position.toFen());
 }
 
 int ChessBoardModel::rowCount(const QModelIndex &parent) const
@@ -146,12 +155,22 @@ bool ChessBoardModel::movePiece(int fromIndex, int toIndex)
         return false;
     }
 
+    // 记录移动棋子和目标位置的棋子（用于历史记录）
+    const ChessPiece *movedPiece = m_position.board().pieceAt(fromRow, fromCol);
+    const ChessPiece *targetPiece = m_position.board().pieceAt(toRow, toCol);
+    QString capturedPiece = targetPiece ? targetPiece->chineseName() : "";
+
     // 执行移动
     m_position.board().movePiece(fromRow, fromCol, toRow, toCol);
 
     // 切换回合
     m_position.switchTurn();
     m_position.incrementFullMoveNumber();
+
+    // 记录走棋历史（使用移动前保存的棋子信息）
+    if (movedPiece) {
+        m_gameController.recordMove(m_position, *movedPiece, fromRow, fromCol, toRow, toCol, capturedPiece);
+    }
 
     // 重建模型
     beginResetModel();
@@ -193,12 +212,22 @@ bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
         return false;
     }
 
+    // 记录移动棋子和目标位置的棋子（用于历史记录）
+    const ChessPiece *movedPiece = m_position.board().pieceAt(fromRow, fromCol);
+    const ChessPiece *targetPiece = m_position.board().pieceAt(toRow, toCol);
+    QString capturedPiece = targetPiece ? targetPiece->chineseName() : "";
+
     // 执行移动
     m_position.board().movePiece(fromRow, fromCol, toRow, toCol);
 
     // 切换回合
     m_position.switchTurn();
     m_position.incrementFullMoveNumber();
+
+    // 记录走棋历史（使用移动前保存的棋子信息）
+    if (movedPiece) {
+        m_gameController.recordMove(m_position, *movedPiece, fromRow, fromCol, toRow, toCol, capturedPiece);
+    }
 
     // 重建模型
     beginResetModel();
@@ -298,6 +327,40 @@ void ChessBoardModel::checkGameStatus()
     QString colorName = (currentColor == PieceColor::Red) ? "红方" : "黑方";
     QString opponentName = (currentColor == PieceColor::Red) ? "黑方" : "红方";
 
+    // 首先检查双方的将/帅是否还存在
+    bool redKingExists = false;
+    bool blackKingExists = false;
+
+    for (int row = 0; row < Board::ROWS; ++row) {
+        for (int col = 0; col < Board::COLS; ++col) {
+            const ChessPiece *piece = m_position.board().pieceAt(row, col);
+            if (piece && piece->type() == PieceType::King) {
+                if (piece->color() == PieceColor::Red) {
+                    redKingExists = true;
+                } else if (piece->color() == PieceColor::Black) {
+                    blackKingExists = true;
+                }
+            }
+        }
+    }
+
+    // 如果某一方的将/帅被吃掉，游戏结束
+    if (!redKingExists) {
+        m_gameStatus = "黑方胜 - 红方帅被吃";
+        qDebug() << "游戏结束:" << m_gameStatus;
+        emit gameOver(m_gameStatus);
+        emit gameStatusChanged();
+        return;
+    }
+
+    if (!blackKingExists) {
+        m_gameStatus = "红方胜 - 黑方将被吃";
+        qDebug() << "游戏结束:" << m_gameStatus;
+        emit gameOver(m_gameStatus);
+        emit gameStatusChanged();
+        return;
+    }
+
     // 检查将死
     if (ChessRules::isCheckmate(m_position.board(), currentColor)) {
         m_gameStatus = opponentName + "胜 - " + colorName + "被将死";
@@ -351,4 +414,83 @@ void ChessBoardModel::updateValidMoves()
              << "有" << m_validMovePositions.size() << "个合法走法";
 
     emit validMovePositionsChanged();
+}
+
+bool ChessBoardModel::canUndo() const
+{
+    return m_gameController.canUndo();
+}
+
+bool ChessBoardModel::canRedo() const
+{
+    return m_gameController.canRedo();
+}
+
+int ChessBoardModel::moveCount() const
+{
+    return m_gameController.getCurrentMoveNumber();
+}
+
+void ChessBoardModel::undoMove()
+{
+    if (m_gameController.undo(m_position)) {
+        // 重建棋盘显示
+        beginResetModel();
+        rebuildPiecesList();
+        setLiftedPieceIndex(-1);
+        endResetModel();
+
+        emit isRedTurnChanged();
+        emit fenStringChanged();
+        emit boardChanged();
+        checkGameStatus();
+
+        qDebug() << "悔棋成功，当前步数:" << moveCount();
+    }
+}
+
+void ChessBoardModel::redoMove()
+{
+    if (m_gameController.redo(m_position)) {
+        // 重建棋盘显示
+        beginResetModel();
+        rebuildPiecesList();
+        setLiftedPieceIndex(-1);
+        endResetModel();
+
+        emit isRedTurnChanged();
+        emit fenStringChanged();
+        emit boardChanged();
+        checkGameStatus();
+
+        qDebug() << "重做成功，当前步数:" << moveCount();
+    }
+}
+
+void ChessBoardModel::startNewGame()
+{
+    // 重置棋盘
+    beginResetModel();
+    m_position.board().initializeStartPosition();
+    m_position.setCurrentTurn(PieceColor::Red);
+    m_position.setHalfMoveClock(0);
+    m_position.setFullMoveNumber(1);
+    rebuildPiecesList();
+    setLiftedPieceIndex(-1);
+    endResetModel();
+
+    // 重置游戏控制器（传入当前局面的FEN）
+    m_gameController.startNewGame(m_position.toFen());
+
+    emit isRedTurnChanged();
+    emit fenStringChanged();
+    emit boardChanged();
+    checkGameStatus();
+
+    qDebug() << "开始新游戏";
+}
+
+QString ChessBoardModel::exportGameHistory() const
+{
+    return m_gameController.exportToPGN();
 }

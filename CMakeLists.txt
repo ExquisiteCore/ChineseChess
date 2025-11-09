@@ -21,6 +21,8 @@ qt_add_executable(appChineseChess
     src/core/Position.cpp
     src/core/ChessRules.h
     src/core/ChessRules.cpp
+    src/core/GameController.h
+    src/core/GameController.cpp
     # QML 适配层
     src/model/ChessBoardModel.h
     src/model/ChessBoardModel.cpp

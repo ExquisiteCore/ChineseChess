@@ -58,52 +58,54 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             Button {
-                text: "切换回合"
+                text: "悔棋"
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 40
+                enabled: chessBoardModel.canUndo
 
                 contentItem: Text {
                     text: parent.text
                     font.pixelSize: 16
-                    color: "white"
+                    color: parent.enabled ? "white" : "#aaaaaa"
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
 
                 background: Rectangle {
-                    color: parent.pressed ? "#654321" : (parent.hovered ? "#a0522d" : "#6b3410")
+                    color: parent.enabled ? (parent.pressed ? "#654321" : (parent.hovered ? "#a0522d" : "#6b3410")) : "#555555"
                     radius: 5
                     border.color: "#ffd700"
                     border.width: 1
                 }
 
                 onClicked: {
-                    chessBoardModel.isRedTurn = !chessBoardModel.isRedTurn
+                    chessBoardModel.undoMove()
                 }
             }
 
             Button {
-                text: "调试信息"
+                text: "重做"
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 40
+                enabled: chessBoardModel.canRedo
 
                 contentItem: Text {
                     text: parent.text
                     font.pixelSize: 16
-                    color: "white"
+                    color: parent.enabled ? "white" : "#aaaaaa"
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
 
                 background: Rectangle {
-                    color: parent.pressed ? "#654321" : (parent.hovered ? "#a0522d" : "#6b3410")
+                    color: parent.enabled ? (parent.pressed ? "#654321" : (parent.hovered ? "#a0522d" : "#6b3410")) : "#555555"
                     radius: 5
                     border.color: "#ffd700"
                     border.width: 1
                 }
 
                 onClicked: {
-                    chessBoardModel.printDebugInfo()
+                    chessBoardModel.redoMove()
                 }
             }
 
@@ -125,6 +127,10 @@ Rectangle {
                     radius: 5
                     border.color: "#ffd700"
                     border.width: 1
+                }
+
+                onClicked: {
+                    chessBoardModel.startNewGame()
                 }
             }
         }
@@ -189,13 +195,15 @@ Rectangle {
                 }
 
                 Text {
-                    text: "已用时间: 00:00"
+                    text: "游戏状态: " + chessBoardModel.gameStatus
                     font.pixelSize: 16
                     color: "#654321"
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
                 }
 
                 Text {
-                    text: "已走步数: 0"
+                    text: "已走步数: " + chessBoardModel.moveCount
                     font.pixelSize: 16
                     color: "#654321"
                 }

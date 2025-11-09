@@ -83,6 +83,31 @@ Rectangle {
             }
 
             Button {
+                text: "调试信息"
+                Layout.preferredWidth: 100
+                Layout.preferredHeight: 40
+
+                contentItem: Text {
+                    text: parent.text
+                    font.pixelSize: 16
+                    color: "white"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                background: Rectangle {
+                    color: parent.pressed ? "#654321" : (parent.hovered ? "#a0522d" : "#6b3410")
+                    radius: 5
+                    border.color: "#ffd700"
+                    border.width: 1
+                }
+
+                onClicked: {
+                    chessBoardModel.printDebugInfo()
+                }
+            }
+
+            Button {
                 text: "重新开始"
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 40
@@ -173,6 +198,14 @@ Rectangle {
                     text: "已走步数: 0"
                     font.pixelSize: 16
                     color: "#654321"
+                }
+
+                Text {
+                    text: "FEN: " + chessBoardModel.fenString
+                    font.pixelSize: 12
+                    color: "#654321"
+                    wrapMode: Text.WrapAnywhere
+                    Layout.fillWidth: true
                 }
 
                 Item { Layout.fillHeight: true }

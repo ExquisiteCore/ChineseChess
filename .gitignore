@@ -82,3 +82,4 @@ CMakeLists.txt.user*
 /build*/
 CMakeLists.txt
 /.idea/
+/.claude/

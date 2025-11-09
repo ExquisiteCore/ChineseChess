@@ -15,6 +15,59 @@ Rectangle {
     property real offsetY: (height - boardHeight) / 2 // 垂直偏移（居中）
     property real lineWidth: 2    // 线条宽度
 
+    // 棋子数据模型
+    ListModel {
+        id: piecesModel
+
+        Component.onCompleted: {
+            // 黑方（上方）
+            // 第0行：车 马 象 士 将 士 象 马 车
+            append({ pieceType: "车", isRed: false, row: 0, col: 0 })
+            append({ pieceType: "马", isRed: false, row: 0, col: 1 })
+            append({ pieceType: "象", isRed: false, row: 0, col: 2 })
+            append({ pieceType: "士", isRed: false, row: 0, col: 3 })
+            append({ pieceType: "将", isRed: false, row: 0, col: 4 })
+            append({ pieceType: "士", isRed: false, row: 0, col: 5 })
+            append({ pieceType: "象", isRed: false, row: 0, col: 6 })
+            append({ pieceType: "马", isRed: false, row: 0, col: 7 })
+            append({ pieceType: "车", isRed: false, row: 0, col: 8 })
+
+            // 第2行：炮
+            append({ pieceType: "炮", isRed: false, row: 2, col: 1 })
+            append({ pieceType: "炮", isRed: false, row: 2, col: 7 })
+
+            // 第3行：卒
+            append({ pieceType: "卒", isRed: false, row: 3, col: 0 })
+            append({ pieceType: "卒", isRed: false, row: 3, col: 2 })
+            append({ pieceType: "卒", isRed: false, row: 3, col: 4 })
+            append({ pieceType: "卒", isRed: false, row: 3, col: 6 })
+            append({ pieceType: "卒", isRed: false, row: 3, col: 8 })
+
+            // 红方（下方）
+            // 第6行：兵
+            append({ pieceType: "兵", isRed: true, row: 6, col: 0 })
+            append({ pieceType: "兵", isRed: true, row: 6, col: 2 })
+            append({ pieceType: "兵", isRed: true, row: 6, col: 4 })
+            append({ pieceType: "兵", isRed: true, row: 6, col: 6 })
+            append({ pieceType: "兵", isRed: true, row: 6, col: 8 })
+
+            // 第7行：炮
+            append({ pieceType: "炮", isRed: true, row: 7, col: 1 })
+            append({ pieceType: "炮", isRed: true, row: 7, col: 7 })
+
+            // 第9行：車 馬 相 仕 帥 仕 相 馬 車
+            append({ pieceType: "車", isRed: true, row: 9, col: 0 })
+            append({ pieceType: "馬", isRed: true, row: 9, col: 1 })
+            append({ pieceType: "相", isRed: true, row: 9, col: 2 })
+            append({ pieceType: "仕", isRed: true, row: 9, col: 3 })
+            append({ pieceType: "帥", isRed: true, row: 9, col: 4 })
+            append({ pieceType: "仕", isRed: true, row: 9, col: 5 })
+            append({ pieceType: "相", isRed: true, row: 9, col: 6 })
+            append({ pieceType: "馬", isRed: true, row: 9, col: 7 })
+            append({ pieceType: "車", isRed: true, row: 9, col: 8 })
+        }
+    }
+
     // 将逻辑坐标转换为屏幕坐标
     function gridToX(col) {
         return offsetX + col * gridSize
@@ -180,6 +233,26 @@ Rectangle {
             font.family: "KaiTi"
             color: "#8b4513"
             opacity: 0.6
+        }
+    }
+
+    // 渲染所有棋子
+    Repeater {
+        model: piecesModel
+        delegate: ChessPiece {
+            pieceType: model.pieceType
+            isRed: model.isRed
+            row: model.row
+            col: model.col
+            pieceSize: gridSize * 0.9
+
+            // 居中对齐到交叉点
+            x: gridToX(model.col) - width / 2
+            y: gridToY(model.row) - height / 2
+
+            onClicked: {
+                console.log("点击了棋子:", model.pieceType, "位置:", model.row, model.col)
+            }
         }
     }
 

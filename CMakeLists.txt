@@ -18,6 +18,9 @@ qt_add_qml_module(appChineseChess
     URI ChineseChess
     QML_FILES
         qml/Main.qml
+        qml/MenuPage.qml
+        qml/MenuButton.qml
+        qml/GamePage.qml
 )
 
 set_target_properties(appChineseChess PROPERTIES

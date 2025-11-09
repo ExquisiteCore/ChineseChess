@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 
 project(ChineseChess VERSION 0.1 LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick)
 
@@ -18,9 +20,6 @@ qt_add_qml_module(appChineseChess
         qml/Main.qml
 )
 
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
 set_target_properties(appChineseChess PROPERTIES
 #    MACOSX_BUNDLE_GUI_IDENTIFIER com.example.appChineseChess
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}

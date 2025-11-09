@@ -15,62 +15,11 @@ Rectangle {
     property real offsetY: (height - boardHeight) / 2 // 垂直偏移（居中）
     property real lineWidth: 2    // 线条宽度
 
-    // 游戏状态
-    property bool isRedTurn: true        // 当前是否为红方回合
-    property int liftedPieceIndex: -1    // 当前悬浮的棋子索引（-1表示无）
+    // 游戏状态（现在由 C++ 模型提供）
+    property bool isRedTurn: chessBoardModel.isRedTurn
+    property int liftedPieceIndex: chessBoardModel.liftedPieceIndex
 
-    // 棋子数据模型
-    ListModel {
-        id: piecesModel
-
-        Component.onCompleted: {
-            // 黑方（上方）
-            // 第0行：车 马 象 士 将 士 象 马 车
-            append({ pieceType: "车", isRed: false, row: 0, col: 0 })
-            append({ pieceType: "马", isRed: false, row: 0, col: 1 })
-            append({ pieceType: "象", isRed: false, row: 0, col: 2 })
-            append({ pieceType: "士", isRed: false, row: 0, col: 3 })
-            append({ pieceType: "将", isRed: false, row: 0, col: 4 })
-            append({ pieceType: "士", isRed: false, row: 0, col: 5 })
-            append({ pieceType: "象", isRed: false, row: 0, col: 6 })
-            append({ pieceType: "马", isRed: false, row: 0, col: 7 })
-            append({ pieceType: "车", isRed: false, row: 0, col: 8 })
-
-            // 第2行：炮
-            append({ pieceType: "炮", isRed: false, row: 2, col: 1 })
-            append({ pieceType: "炮", isRed: false, row: 2, col: 7 })
-
-            // 第3行：卒
-            append({ pieceType: "卒", isRed: false, row: 3, col: 0 })
-            append({ pieceType: "卒", isRed: false, row: 3, col: 2 })
-            append({ pieceType: "卒", isRed: false, row: 3, col: 4 })
-            append({ pieceType: "卒", isRed: false, row: 3, col: 6 })
-            append({ pieceType: "卒", isRed: false, row: 3, col: 8 })
-
-            // 红方（下方）
-            // 第6行：兵
-            append({ pieceType: "兵", isRed: true, row: 6, col: 0 })
-            append({ pieceType: "兵", isRed: true, row: 6, col: 2 })
-            append({ pieceType: "兵", isRed: true, row: 6, col: 4 })
-            append({ pieceType: "兵", isRed: true, row: 6, col: 6 })
-            append({ pieceType: "兵", isRed: true, row: 6, col: 8 })
-
-            // 第7行：炮
-            append({ pieceType: "炮", isRed: true, row: 7, col: 1 })
-            append({ pieceType: "炮", isRed: true, row: 7, col: 7 })
-
-            // 第9行：車 馬 相 仕 帥 仕 相 馬 車
-            append({ pieceType: "車", isRed: true, row: 9, col: 0 })
-            append({ pieceType: "馬", isRed: true, row: 9, col: 1 })
-            append({ pieceType: "相", isRed: true, row: 9, col: 2 })
-            append({ pieceType: "仕", isRed: true, row: 9, col: 3 })
-            append({ pieceType: "帥", isRed: true, row: 9, col: 4 })
-            append({ pieceType: "仕", isRed: true, row: 9, col: 5 })
-            append({ pieceType: "相", isRed: true, row: 9, col: 6 })
-            append({ pieceType: "馬", isRed: true, row: 9, col: 7 })
-            append({ pieceType: "車", isRed: true, row: 9, col: 8 })
-        }
-    }
+    // 移除 QML 的 ListModel，改用 C++ 模型
 
     // 将逻辑坐标转换为屏幕坐标
     function gridToX(col) {
@@ -240,9 +189,9 @@ Rectangle {
         }
     }
 
-    // 渲染所有棋子
+    // 渲染所有棋子（使用 C++ 模型）
     Repeater {
-        model: piecesModel
+        model: chessBoardModel
         delegate: ChessPiece {
             id: piece
             pieceType: model.pieceType
@@ -252,27 +201,15 @@ Rectangle {
             pieceSize: gridSize * 0.9
 
             // 根据索引控制悬浮状态
-            lifted: liftedPieceIndex === model.index
+            lifted: liftedPieceIndex === index
 
             // 居中对齐到交叉点
             x: gridToX(model.col) - width / 2
             y: gridToY(model.row) - height / 2
 
             onClicked: {
-                // 检查是否为当前回合的棋子
-                if (model.isRed !== isRedTurn) {
-                    console.log("不是你的回合！当前是" + (isRedTurn ? "红方" : "黑方") + "回合")
-                    return
-                }
-
-                // 单选逻辑：如果点击的是当前悬浮的棋子，则放下；否则切换到新棋子
-                if (liftedPieceIndex === model.index) {
-                    liftedPieceIndex = -1  // 放下当前棋子
-                } else {
-                    liftedPieceIndex = model.index  // 提起新棋子
-                }
-
-                console.log("点击了棋子:", model.pieceType, "位置:", model.row, model.col)
+                // 调用 C++ 的选择逻辑
+                chessBoardModel.selectPiece(index)
             }
         }
     }

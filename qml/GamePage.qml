@@ -78,8 +78,7 @@ Rectangle {
                 }
 
                 onClicked: {
-                    chessBoard.isRedTurn = !chessBoard.isRedTurn
-                    chessBoard.liftedPieceIndex = -1  // 切换回合时放下棋子
+                    chessBoardModel.isRedTurn = !chessBoardModel.isRedTurn
                 }
             }
 

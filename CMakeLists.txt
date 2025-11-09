@@ -18,6 +18,8 @@ qt_add_executable(appChineseChess
     src/Board.cpp
     src/Position.h
     src/Position.cpp
+    src/ChessRules.h
+    src/ChessRules.cpp
     src/ChessBoardModel.h
     src/ChessBoardModel.cpp
 )

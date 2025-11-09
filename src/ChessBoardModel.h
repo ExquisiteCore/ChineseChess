@@ -4,6 +4,7 @@
 #include <QAbstractListModel>
 #include <QString>
 #include "Position.h"
+#include "ChessRules.h"
 
 // 棋盘数据模型（适配层，连接 C++ 核心和 QML UI）
 class ChessBoardModel : public QAbstractListModel
@@ -47,6 +48,11 @@ public:
     Q_INVOKABLE void resetBoard();
     Q_INVOKABLE bool loadFromFen(const QString &fen);
     Q_INVOKABLE void printDebugInfo();
+
+    // 走棋相关
+    Q_INVOKABLE bool movePiece(int fromIndex, int toIndex);
+    Q_INVOKABLE bool movePieceToPosition(int fromIndex, int toRow, int toCol);
+    Q_INVOKABLE QList<int> getValidMoves(int index) const;
 
 signals:
     void isRedTurnChanged();

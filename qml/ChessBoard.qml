@@ -30,6 +30,32 @@ Rectangle {
         return offsetY + row * gridSize
     }
 
+    // 将屏幕坐标转换为逻辑坐标
+    function screenToGridCol(x) {
+        return Math.round((x - offsetX) / gridSize)
+    }
+
+    function screenToGridRow(y) {
+        return Math.round((y - offsetY) / gridSize)
+    }
+
+    // 处理棋盘点击（包括空位）
+    MouseArea {
+        anchors.fill: parent
+        onClicked: function(mouse) {
+            var col = screenToGridCol(mouse.x)
+            var row = screenToGridRow(mouse.y)
+
+            // 检查坐标是否有效
+            if (col >= 0 && col < cols && row >= 0 && row < rows) {
+                // 如果有棋子被提起，尝试移动到该位置
+                if (liftedPieceIndex >= 0) {
+                    chessBoardModel.movePieceToPosition(liftedPieceIndex, row, col)
+                }
+            }
+        }
+    }
+
     // 绘制棋盘
     Canvas {
         id: boardCanvas

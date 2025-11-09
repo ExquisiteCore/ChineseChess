@@ -179,6 +179,27 @@ QString GameController::exportToPGN() const
     return pgn;
 }
 
+QStringList GameController::getMoveHistoryList() const
+{
+    QStringList historyList;
+
+    for (int i = 0; i < m_moveHistory.size(); i += 2) {
+        QString move = QString::number(i / 2 + 1) + ". ";
+
+        // 红方走棋
+        move += m_moveHistory.at(i).notation;
+
+        // 黑方走棋（如果存在）
+        if (i + 1 < m_moveHistory.size()) {
+            move += " " + m_moveHistory.at(i + 1).notation;
+        }
+
+        historyList.append(move);
+    }
+
+    return historyList;
+}
+
 QString GameController::generateNotation(const ChessPiece &piece, int fromRow, int fromCol, int toRow, int toCol) const
 {
     // 简化的记谱法实现

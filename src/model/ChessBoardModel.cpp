@@ -181,6 +181,7 @@ bool ChessBoardModel::movePiece(int fromIndex, int toIndex)
     emit isRedTurnChanged();
     emit fenStringChanged();
     emit boardChanged();
+    emit moveHistoryChanged();
 
     // 检查游戏状态（将军、将死、困毙）
     checkGameStatus();
@@ -238,6 +239,7 @@ bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
     emit isRedTurnChanged();
     emit fenStringChanged();
     emit boardChanged();
+    emit moveHistoryChanged();
 
     // 检查游戏状态（将军、将死、困毙）
     checkGameStatus();
@@ -283,6 +285,7 @@ void ChessBoardModel::resetBoard()
     emit isRedTurnChanged();
     emit fenStringChanged();
     emit boardChanged();
+    emit moveHistoryChanged();  // 通知历史记录已重置
 
     // 重置后检查游戏状态
     checkGameStatus();
@@ -302,9 +305,13 @@ bool ChessBoardModel::loadFromFen(const QString &fen)
     setLiftedPieceIndex(-1);
     endResetModel();
 
+    // 重置游戏控制器（使用新加载的局面作为起点）
+    m_gameController.startNewGame(m_position.toFen());
+
     emit isRedTurnChanged();
     emit fenStringChanged();
     emit boardChanged();
+    emit moveHistoryChanged();  // 通知历史记录已重置
 
     qDebug() << "成功加载 FEN:" << fen;
     return true;
@@ -431,6 +438,11 @@ int ChessBoardModel::moveCount() const
     return m_gameController.getCurrentMoveNumber();
 }
 
+QStringList ChessBoardModel::moveHistory() const
+{
+    return m_gameController.getMoveHistoryList();
+}
+
 void ChessBoardModel::undoMove()
 {
     if (m_gameController.undo(m_position)) {
@@ -443,6 +455,7 @@ void ChessBoardModel::undoMove()
         emit isRedTurnChanged();
         emit fenStringChanged();
         emit boardChanged();
+        emit moveHistoryChanged();
         checkGameStatus();
 
         qDebug() << "悔棋成功，当前步数:" << moveCount();
@@ -461,6 +474,7 @@ void ChessBoardModel::redoMove()
         emit isRedTurnChanged();
         emit fenStringChanged();
         emit boardChanged();
+        emit moveHistoryChanged();
         checkGameStatus();
 
         qDebug() << "重做成功，当前步数:" << moveCount();
@@ -485,6 +499,7 @@ void ChessBoardModel::startNewGame()
     emit isRedTurnChanged();
     emit fenStringChanged();
     emit boardChanged();
+    emit moveHistoryChanged();  // 通知历史记录已重置
     checkGameStatus();
 
     qDebug() << "开始新游戏";
@@ -493,4 +508,62 @@ void ChessBoardModel::startNewGame()
 QString ChessBoardModel::exportGameHistory() const
 {
     return m_gameController.exportToPGN();
+}
+
+QString ChessBoardModel::saveGame() const
+{
+    // 返回当前局面的FEN字符串
+    return m_position.toFen();
+}
+
+bool ChessBoardModel::loadGame(const QString &fen)
+{
+    // 从FEN字符串加载局面
+    return loadFromFen(fen);
+}
+
+void ChessBoardModel::showHint()
+{
+    // 如果当前没有选中棋子，选中第一个可移动的己方棋子
+    if (m_liftedPieceIndex < 0) {
+        PieceColor currentColor = m_position.currentTurn();
+
+        // 查找第一个有合法走法的棋子
+        for (int i = 0; i < m_piecesList.count(); ++i) {
+            const ChessPiece &piece = m_piecesList[i];
+            if (piece.color() == currentColor) {
+                QList<QPoint> moves = ChessRules::getLegalMoves(m_position.board(), piece.row(), piece.col());
+                if (!moves.isEmpty()) {
+                    setLiftedPieceIndex(i);
+                    qDebug() << "提示：选中" << piece.chineseName() << "位置:" << piece.row() << piece.col();
+                    emit hintShown();
+                    return;
+                }
+            }
+        }
+
+        qDebug() << "提示：无可走棋子";
+    } else {
+        // 如果已经选中棋子，显示可走位置（已经通过updateValidMoves自动显示）
+        qDebug() << "提示：显示当前棋子可走位置";
+        emit hintShown();
+    }
+}
+
+void ChessBoardModel::offerDraw()
+{
+    QString colorName = isRedTurn() ? "红方" : "黑方";
+    QString message = colorName + "提出和棋";
+    qDebug() << message;
+    emit drawOffered(message);
+}
+
+void ChessBoardModel::resign()
+{
+    QString colorName = isRedTurn() ? "红方" : "黑方";
+    QString opponentName = isRedTurn() ? "黑方" : "红方";
+    m_gameStatus = opponentName + "胜 - " + colorName + "认输";
+    qDebug() << "游戏结束:" << m_gameStatus;
+    emit gameOver(m_gameStatus);
+    emit gameStatusChanged();
 }

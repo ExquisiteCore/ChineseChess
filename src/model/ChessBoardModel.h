@@ -20,6 +20,7 @@ class ChessBoardModel : public QAbstractListModel
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY canUndoChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY canRedoChanged)
     Q_PROPERTY(int moveCount READ moveCount NOTIFY moveCountChanged)
+    Q_PROPERTY(QStringList moveHistory READ moveHistory NOTIFY moveHistoryChanged)
 
 public:
     enum ChessPieceRoles {
@@ -52,6 +53,7 @@ public:
     bool canUndo() const;
     bool canRedo() const;
     int moveCount() const;
+    QStringList moveHistory() const;
 
     // 获取 Position 对象
     Position& position() { return m_position; }
@@ -75,6 +77,15 @@ public:
     Q_INVOKABLE void startNewGame();
     Q_INVOKABLE QString exportGameHistory() const;
 
+    // 保存/加载功能
+    Q_INVOKABLE QString saveGame() const;         // 返回FEN字符串用于保存
+    Q_INVOKABLE bool loadGame(const QString &fen); // 从FEN字符串加载
+
+    // 游戏操作
+    Q_INVOKABLE void showHint();      // 显示提示（高亮当前可走位置）
+    Q_INVOKABLE void offerDraw();     // 提出和棋
+    Q_INVOKABLE void resign();        // 认输
+
 signals:
     void isRedTurnChanged();
     void liftedPieceIndexChanged();
@@ -86,6 +97,9 @@ signals:
     void canUndoChanged();                  // 悔棋可用性改变
     void canRedoChanged();                  // 重做可用性改变
     void moveCountChanged();                 // 步数改变
+    void moveHistoryChanged();               // 历史记录改变
+    void drawOffered(const QString &message);  // 提出和棋
+    void hintShown();                        // 显示提示
 
 private:
     void rebuildPiecesList();  // 从 Position 重建棋子列表

@@ -62,6 +62,9 @@ public:
     // 获取当前步数
     int getCurrentMoveNumber() const { return m_moveHistory.size(); }
 
+    // 获取历史记录列表（用于显示）
+    QStringList getMoveHistoryList() const;
+
     // 获取游戏状态
     GameState getGameState() const { return m_gameState; }
 

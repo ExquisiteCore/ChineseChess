@@ -8,10 +8,10 @@ Board::Board()
 
 void Board::clear()
 {
-    // 清空棋盘（-1 表示空位）
+    // 清空棋盘（智能指针自动释放内存）
     for (int row = 0; row < ROWS; ++row) {
         for (int col = 0; col < COLS; ++col) {
-            m_board[row][col] = -1;
+            m_board[row][col].reset();  // 或者 = nullptr
         }
     }
     m_pieces.clear();
@@ -69,11 +69,7 @@ ChessPiece* Board::pieceAt(int row, int col)
     if (!isValidPosition(row, col))
         return nullptr;
 
-    int index = m_board[row][col];
-    if (index < 0 || index >= m_pieces.size())
-        return nullptr;
-
-    return &m_pieces[index];
+    return m_board[row][col].data();  // 返回原始指针
 }
 
 const ChessPiece* Board::pieceAt(int row, int col) const
@@ -81,11 +77,7 @@ const ChessPiece* Board::pieceAt(int row, int col) const
     if (!isValidPosition(row, col))
         return nullptr;
 
-    int index = m_board[row][col];
-    if (index < 0 || index >= m_pieces.size())
-        return nullptr;
-
-    return &m_pieces[index];
+    return m_board[row][col].data();  // 返回原始指针
 }
 
 void Board::setPiece(int row, int col, const ChessPiece &piece)
@@ -93,14 +85,14 @@ void Board::setPiece(int row, int col, const ChessPiece &piece)
     if (!isValidPosition(row, col))
         return;
 
-    // 移除旧棋子
+    // 移除旧棋子（智能指针自动管理内存）
     removePiece(row, col);
 
     // 添加新棋子
-    m_pieces.append(piece);
-    int newIndex = m_pieces.size() - 1;
-    m_pieces[newIndex].setPosition(row, col);
-    m_board[row][col] = newIndex;
+    auto newPiece = QSharedPointer<ChessPiece>::create(piece);
+    newPiece->setPosition(row, col);
+    m_board[row][col] = newPiece;
+    m_pieces.append(newPiece);
 }
 
 void Board::removePiece(int row, int col)
@@ -108,11 +100,12 @@ void Board::removePiece(int row, int col)
     if (!isValidPosition(row, col))
         return;
 
-    int index = m_board[row][col];
-    if (index >= 0 && index < m_pieces.size()) {
-        // 标记棋子为无效（不从列表中删除以保持索引稳定）
-        m_pieces[index] = ChessPiece();  // 设置为空棋子
-        m_board[row][col] = -1;
+    auto piece = m_board[row][col];
+    if (piece) {
+        // 从棋子列表中移除
+        m_pieces.removeOne(piece);
+        // 从棋盘上移除（智能指针自动释放内存）
+        m_board[row][col].reset();
     }
 }
 
@@ -121,20 +114,17 @@ bool Board::movePiece(int fromRow, int fromCol, int toRow, int toCol)
     if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol))
         return false;
 
-    int fromIndex = m_board[fromRow][fromCol];
-    if (fromIndex < 0 || fromIndex >= m_pieces.size())
-        return false;
-
-    if (!m_pieces[fromIndex].isValid())
+    auto piece = m_board[fromRow][fromCol];
+    if (!piece || !piece->isValid())
         return false;
 
     // 移除目标位置的棋子（吃子）
     removePiece(toRow, toCol);
 
     // 移动棋子
-    m_pieces[fromIndex].setPosition(toRow, toCol);
-    m_board[toRow][toCol] = fromIndex;
-    m_board[fromRow][fromCol] = -1;
+    piece->setPosition(toRow, toCol);
+    m_board[toRow][toCol] = piece;
+    m_board[fromRow][fromCol].reset();  // 清空原位置
 
     return true;
 }
@@ -176,21 +166,23 @@ bool Board::isInOwnHalf(int row, int col, PieceColor color)
 
 QList<ChessPiece> Board::getAllPieces() const
 {
-    // 只返回有效的棋子
-    QList<ChessPiece> validPieces;
-    for (const ChessPiece &piece : m_pieces) {
-        if (piece.isValid()) {
-            validPieces.append(piece);
+    // 从智能指针列表中提取棋子对象
+    QList<ChessPiece> pieces;
+    for (const auto &piecePtr : m_pieces) {
+        if (piecePtr && piecePtr->isValid()) {
+            pieces.append(*piecePtr);
         }
     }
-    return validPieces;
+    return pieces;
 }
 
 ChessPiece* Board::findKing(PieceColor color)
 {
-    for (ChessPiece &piece : m_pieces) {
-        if (piece.isValid() && piece.type() == PieceType::King && piece.color() == color) {
-            return &piece;
+    for (auto &piecePtr : m_pieces) {
+        if (piecePtr && piecePtr->isValid() &&
+            piecePtr->type() == PieceType::King &&
+            piecePtr->color() == color) {
+            return piecePtr.data();  // 返回原始指针
         }
     }
     return nullptr;
@@ -216,7 +208,7 @@ void Board::print() const
 
 void Board::addPiece(const ChessPiece &piece)
 {
-    m_pieces.append(piece);
-    int newIndex = m_pieces.size() - 1;
-    m_board[piece.row()][piece.col()] = newIndex;
+    auto piecePtr = QSharedPointer<ChessPiece>::create(piece);
+    m_pieces.append(piecePtr);
+    m_board[piece.row()][piece.col()] = piecePtr;
 }

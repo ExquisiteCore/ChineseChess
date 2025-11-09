@@ -5,6 +5,7 @@
 #include <QVector>
 #include <QList>
 #include <QString>
+#include <QSharedPointer>
 
 // 棋盘类 - 9×10 格位
 class Board
@@ -53,11 +54,11 @@ public:
     void print() const;
 
 private:
-    // 二维数组存储棋盘，-1 表示空位，否则存储 m_pieces 中的索引
-    int m_board[ROWS][COLS];
+    // 二维数组存储棋盘，使用智能指针管理棋子
+    QSharedPointer<ChessPiece> m_board[ROWS][COLS];
 
-    // 棋子池（实际存储棋子对象）
-    QList<ChessPiece> m_pieces;
+    // 棋子池（实际存储棋子对象的智能指针）
+    QList<QSharedPointer<ChessPiece>> m_pieces;
 
     // 辅助函数：添加棋子到棋盘
     void addPiece(const ChessPiece &piece);

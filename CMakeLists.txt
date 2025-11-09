@@ -12,16 +12,18 @@ qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(appChineseChess
     src/main.cpp
-    src/ChessPiece.h
-    src/ChessPiece.cpp
-    src/Board.h
-    src/Board.cpp
-    src/Position.h
-    src/Position.cpp
-    src/ChessRules.h
-    src/ChessRules.cpp
-    src/ChessBoardModel.h
-    src/ChessBoardModel.cpp
+    # 核心游戏逻辑
+    src/core/ChessPiece.h
+    src/core/ChessPiece.cpp
+    src/core/Board.h
+    src/core/Board.cpp
+    src/core/Position.h
+    src/core/Position.cpp
+    src/core/ChessRules.h
+    src/core/ChessRules.cpp
+    # QML 适配层
+    src/model/ChessBoardModel.h
+    src/model/ChessBoardModel.cpp
 )
 
 qt_add_qml_module(appChineseChess

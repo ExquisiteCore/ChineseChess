@@ -17,8 +17,9 @@
 *.qm
 .#*
 *.*#
-core
-!core/
+# 忽略 core dump 文件，但不忽略 src/core/ 目录
+/core
+!src/core/
 tags
 .DS_Store
 .directory

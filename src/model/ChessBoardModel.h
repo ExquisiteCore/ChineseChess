@@ -3,8 +3,8 @@
 
 #include <QAbstractListModel>
 #include <QString>
-#include "Position.h"
-#include "ChessRules.h"
+#include "../core/Position.h"
+#include "../core/ChessRules.h"
 
 // 棋盘数据模型（适配层，连接 C++ 核心和 QML UI）
 class ChessBoardModel : public QAbstractListModel

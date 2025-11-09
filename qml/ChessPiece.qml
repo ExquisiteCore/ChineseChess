@@ -107,7 +107,8 @@ Item {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
 
-        onClicked: {
+        onClicked: function(mouse) {
+            mouse.accepted = true  // 阻止事件传播到父级（棋盘）
             chessPiece.clicked()  // 只发射信号，不修改 lifted 状态
         }
     }

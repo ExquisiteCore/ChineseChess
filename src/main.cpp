@@ -1,7 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include "ChessBoardModel.h"
+#include "model/ChessBoardModel.h"
 
 int main(int argc, char *argv[])
 {

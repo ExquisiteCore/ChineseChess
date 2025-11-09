@@ -3,21 +3,15 @@
 
 #include <QAbstractListModel>
 #include <QString>
+#include "Position.h"
 
-// 棋子数据结构
-struct ChessPieceData {
-    QString type;       // 棋子类型：帥/將/車/馬等
-    bool isRed;         // 是否为红方
-    int row;            // 行位置 (0-9)
-    int col;            // 列位置 (0-8)
-};
-
-// 棋盘数据模型
+// 棋盘数据模型（适配层，连接 C++ 核心和 QML UI）
 class ChessBoardModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(bool isRedTurn READ isRedTurn WRITE setIsRedTurn NOTIFY isRedTurnChanged)
     Q_PROPERTY(int liftedPieceIndex READ liftedPieceIndex WRITE setLiftedPieceIndex NOTIFY liftedPieceIndexChanged)
+    Q_PROPERTY(QString fenString READ fenString NOTIFY fenStringChanged)
 
 public:
     enum ChessPieceRoles {
@@ -35,25 +29,36 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     // 属性访问器
-    bool isRedTurn() const { return m_isRedTurn; }
+    bool isRedTurn() const;
     void setIsRedTurn(bool turn);
 
     int liftedPieceIndex() const { return m_liftedPieceIndex; }
     void setLiftedPieceIndex(int index);
 
+    QString fenString() const { return m_position.toFen(); }
+
+    // 获取 Position 对象
+    Position& position() { return m_position; }
+    const Position& position() const { return m_position; }
+
     // 游戏逻辑方法
     Q_INVOKABLE bool canSelectPiece(int index) const;
     Q_INVOKABLE void selectPiece(int index);
+    Q_INVOKABLE void resetBoard();
+    Q_INVOKABLE bool loadFromFen(const QString &fen);
+    Q_INVOKABLE void printDebugInfo();
 
 signals:
     void isRedTurnChanged();
     void liftedPieceIndexChanged();
+    void fenStringChanged();
+    void boardChanged();
 
 private:
-    void initializeBoard();  // 初始化棋盘
+    void rebuildPiecesList();  // 从 Position 重建棋子列表
 
-    QList<ChessPieceData> m_pieces;   // 所有棋子数据
-    bool m_isRedTurn;                 // 当前回合
+    Position m_position;              // 核心局面对象
+    QList<ChessPiece> m_piecesList;   // 用于 QML 显示的棋子列表
     int m_liftedPieceIndex;           // 当前悬浮的棋子索引
 };
 

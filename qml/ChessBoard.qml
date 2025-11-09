@@ -245,6 +245,60 @@ Rectangle {
         }
     }
 
+    // 显示可走位置的标记
+    Repeater {
+        model: chessBoardModel.validMovePositions
+
+        delegate: Rectangle {
+            id: moveHint
+            width: gridSize * 0.35
+            height: gridSize * 0.35
+            radius: width / 2
+            color: "#80ff6b35"  // 半透明橙色
+            border.color: "#ffad5a"
+            border.width: 2
+
+            // 定位到可走位置（QPoint中x是col，y是row）
+            x: gridToX(modelData.x) - width / 2
+            y: gridToY(modelData.y) - height / 2
+
+            // 呼吸动画
+            SequentialAnimation on opacity {
+                running: true
+                loops: Animation.Infinite
+                NumberAnimation { from: 0.6; to: 1.0; duration: 800; easing.type: Easing.InOutQuad }
+                NumberAnimation { from: 1.0; to: 0.6; duration: 800; easing.type: Easing.InOutQuad }
+            }
+
+            // 鼠标悬停效果
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+
+                onEntered: {
+                    moveHint.scale = 1.2
+                }
+
+                onExited: {
+                    moveHint.scale = 1.0
+                }
+
+                onClicked: {
+                    // 点击可走位置，尝试移动
+                    if (liftedPieceIndex >= 0) {
+                        console.log("点击可走位置:", modelData.y, modelData.x)
+                        chessBoardModel.movePieceToPosition(liftedPieceIndex, modelData.y, modelData.x)
+                    }
+                }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 150; easing.type: Easing.OutBack }
+            }
+        }
+    }
+
     // 当尺寸改变时重绘
     onWidthChanged: boardCanvas.requestPaint()
     onHeightChanged: boardCanvas.requestPaint()

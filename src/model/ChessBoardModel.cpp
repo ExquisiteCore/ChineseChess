@@ -72,6 +72,9 @@ void ChessBoardModel::setLiftedPieceIndex(int index)
     if (m_liftedPieceIndex != index) {
         m_liftedPieceIndex = index;
         emit liftedPieceIndexChanged();
+
+        // 更新可走位置
+        updateValidMoves();
     }
 }
 
@@ -324,4 +327,28 @@ void ChessBoardModel::checkGameStatus()
     // 正常进行中
     m_gameStatus = colorName + "走棋";
     emit gameStatusChanged();
+}
+
+void ChessBoardModel::updateValidMoves()
+{
+    m_validMovePositions.clear();
+
+    // 如果没有选中棋子，清空可走位置
+    if (m_liftedPieceIndex < 0 || m_liftedPieceIndex >= m_piecesList.count()) {
+        emit validMovePositionsChanged();
+        return;
+    }
+
+    const ChessPiece &piece = m_piecesList[m_liftedPieceIndex];
+
+    // 获取该棋子的所有合法走法
+    m_validMovePositions = ChessRules::getLegalMoves(m_position.board(),
+                                                     piece.row(),
+                                                     piece.col());
+
+    qDebug() << "棋子" << piece.chineseName()
+             << "在位置(" << piece.row() << "," << piece.col() << ")"
+             << "有" << m_validMovePositions.size() << "个合法走法";
+
+    emit validMovePositionsChanged();
 }

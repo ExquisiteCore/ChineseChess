@@ -21,6 +21,7 @@ qt_add_qml_module(appChineseChess
         qml/MenuPage.qml
         qml/MenuButton.qml
         qml/GamePage.qml
+        qml/ChessBoard.qml
 )
 
 set_target_properties(appChineseChess PROPERTIES

@@ -119,20 +119,10 @@ Rectangle {
             border.color: "#8b4513"
             border.width: 3
 
-            // 棋盘背景
-            Rectangle {
+            // 棋盘
+            ChessBoard {
                 anchors.fill: parent
                 anchors.margins: 20
-                color: "#f5deb3"
-
-                // 这里后续会添加棋盘的具体绘制
-                Text {
-                    anchors.centerIn: parent
-                    text: "棋盘区域\n（待实现）"
-                    font.pixelSize: 32
-                    color: "#8b4513"
-                    horizontalAlignment: Text.AlignHCenter
-                }
             }
         }
 

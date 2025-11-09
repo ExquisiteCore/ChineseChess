@@ -42,9 +42,12 @@ Rectangle {
     // 处理棋盘点击（包括空位）
     MouseArea {
         anchors.fill: parent
+        z: -1  // 设置为负数，让棋子在上层
+        propagateComposedEvents: true  // 允许事件传播到上层元素（棋子）
         onClicked: function(mouse) {
             var col = screenToGridCol(mouse.x)
             var row = screenToGridRow(mouse.y)
+            console.log("棋盘被点击:", "位置:", row, col, "当前悬浮:", liftedPieceIndex)
 
             // 检查坐标是否有效
             if (col >= 0 && col < cols && row >= 0 && row < rows) {
@@ -53,6 +56,7 @@ Rectangle {
                     chessBoardModel.movePieceToPosition(liftedPieceIndex, row, col)
                 }
             }
+            // 不设置 mouse.accepted，让事件继续传播
         }
     }
 
@@ -235,6 +239,7 @@ Rectangle {
 
             onClicked: {
                 // 调用 C++ 的选择逻辑
+                console.log("ChessBoard: 棋子点击事件接收, index:", index)
                 chessBoardModel.selectPiece(index)
             }
         }

@@ -87,20 +87,22 @@ bool ChessBoardModel::canSelectPiece(int index) const
 
 void ChessBoardModel::selectPiece(int index)
 {
-    if (!canSelectPiece(index)) {
-        qDebug() << "不是你的回合！当前是" << (isRedTurn() ? "红方" : "黑方") << "回合";
-        return;
-    }
-
     const ChessPiece &piece = m_piecesList[index];
 
-    // 如果已经有悬浮的棋子，尝试走棋
+    // 如果已经有悬浮的棋子，尝试走棋（可能是吃子）
     if (m_liftedPieceIndex >= 0 && m_liftedPieceIndex != index) {
         // 尝试移动到该位置（可能是吃子）
         if (movePieceToPosition(m_liftedPieceIndex, piece.row(), piece.col())) {
             qDebug() << "移动成功";
             return;
         }
+        // 如果移动失败，继续下面的逻辑（可能想切换选择己方其他棋子）
+    }
+
+    // 检查是否能选择这个棋子（必须是己方棋子）
+    if (!canSelectPiece(index)) {
+        qDebug() << "不是你的回合！当前是" << (isRedTurn() ? "红方" : "黑方") << "回合";
+        return;
     }
 
     // 单选逻辑：如果点击的是当前悬浮的棋子，则放下；否则切换到新棋子

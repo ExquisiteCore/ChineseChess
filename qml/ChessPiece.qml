@@ -22,20 +22,20 @@ Item {
         height: pieceSize
         radius: pieceSize / 2
 
-        // 渐变背景（统一颜色）
+        // 渐变背景（统一颜色 - 明亮版本）
         gradient: Gradient {
             GradientStop {
                 position: 0.0
-                color: selected ? "#ffe4b5" : "#f5deb3"
+                color: selected ? "#fff8dc" : "#fffaf0"  // 更亮的米白色
             }
             GradientStop {
                 position: 1.0
-                color: selected ? "#ffd700" : "#f0e68c"
+                color: selected ? "#ffd700" : "#ffe4b5"  // 更亮的浅黄色
             }
         }
 
         // 边框（统一颜色）
-        border.color: "#654321"
+        border.color: "#8b7355"  // 浅棕色边框
         border.width: 3
 
         // 阴影效果
@@ -77,9 +77,9 @@ Item {
         font.pixelSize: pieceSize * 0.55
         font.bold: true
         font.family: "KaiTi"
-        color: isRed ? "#cc0000" : "#000000"  // 红方用红色，黑方用黑色
-        style: Text.Raised
-        styleColor: "#f5deb3"  // 统一使用浅色描边
+        color: isRed ? "#d32f2f" : "#212121"  // 红方用鲜红色，黑方用深灰色
+        style: Text.Outline
+        styleColor: isRed ? "#ffebee" : "#e0e0e0"  // 浅色描边增强对比
     }
 
     // 鼠标交互

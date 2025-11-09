@@ -22,20 +22,20 @@ Item {
         height: pieceSize
         radius: pieceSize / 2
 
-        // 渐变背景
+        // 渐变背景（统一颜色）
         gradient: Gradient {
             GradientStop {
                 position: 0.0
-                color: selected ? "#ffe4b5" : (isRed ? "#f5deb3" : "#fffacd")
+                color: selected ? "#ffe4b5" : "#f5deb3"
             }
             GradientStop {
                 position: 1.0
-                color: selected ? "#ffd700" : (isRed ? "#f0e68c" : "#f5f5dc")
+                color: selected ? "#ffd700" : "#f0e68c"
             }
         }
 
-        // 边框
-        border.color: isRed ? "#8b0000" : "#000000"
+        // 边框（统一颜色）
+        border.color: "#654321"
         border.width: 3
 
         // 阴影效果
@@ -77,9 +77,9 @@ Item {
         font.pixelSize: pieceSize * 0.55
         font.bold: true
         font.family: "KaiTi"
-        color: isRed ? "#8b0000" : "#000000"
+        color: isRed ? "#cc0000" : "#000000"  // 红方用红色，黑方用黑色
         style: Text.Raised
-        styleColor: isRed ? "#ffd700" : "#d3d3d3"
+        styleColor: "#f5deb3"  // 统一使用浅色描边
     }
 
     // 鼠标交互

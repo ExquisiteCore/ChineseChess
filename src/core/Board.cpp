@@ -8,10 +8,10 @@ Board::Board()
 
 void Board::clear()
 {
-    // 清空棋盘
+    // 清空棋盘（-1 表示空位）
     for (int row = 0; row < ROWS; ++row) {
         for (int col = 0; col < COLS; ++col) {
-            m_board[row][col] = nullptr;
+            m_board[row][col] = -1;
         }
     }
     m_pieces.clear();
@@ -68,14 +68,24 @@ ChessPiece* Board::pieceAt(int row, int col)
 {
     if (!isValidPosition(row, col))
         return nullptr;
-    return m_board[row][col];
+
+    int index = m_board[row][col];
+    if (index < 0 || index >= m_pieces.size())
+        return nullptr;
+
+    return &m_pieces[index];
 }
 
 const ChessPiece* Board::pieceAt(int row, int col) const
 {
     if (!isValidPosition(row, col))
         return nullptr;
-    return m_board[row][col];
+
+    int index = m_board[row][col];
+    if (index < 0 || index >= m_pieces.size())
+        return nullptr;
+
+    return &m_pieces[index];
 }
 
 void Board::setPiece(int row, int col, const ChessPiece &piece)
@@ -88,9 +98,9 @@ void Board::setPiece(int row, int col, const ChessPiece &piece)
 
     // 添加新棋子
     m_pieces.append(piece);
-    ChessPiece &newPiece = m_pieces.last();
-    newPiece.setPosition(row, col);
-    m_board[row][col] = &newPiece;
+    int newIndex = m_pieces.size() - 1;
+    m_pieces[newIndex].setPosition(row, col);
+    m_board[row][col] = newIndex;
 }
 
 void Board::removePiece(int row, int col)
@@ -98,11 +108,11 @@ void Board::removePiece(int row, int col)
     if (!isValidPosition(row, col))
         return;
 
-    ChessPiece *piece = m_board[row][col];
-    if (piece) {
-        // 从棋子列表中移除
-        m_pieces.removeOne(*piece);
-        m_board[row][col] = nullptr;
+    int index = m_board[row][col];
+    if (index >= 0 && index < m_pieces.size()) {
+        // 标记棋子为无效（不从列表中删除以保持索引稳定）
+        m_pieces[index] = ChessPiece();  // 设置为空棋子
+        m_board[row][col] = -1;
     }
 }
 
@@ -111,17 +121,20 @@ bool Board::movePiece(int fromRow, int fromCol, int toRow, int toCol)
     if (!isValidPosition(fromRow, fromCol) || !isValidPosition(toRow, toCol))
         return false;
 
-    ChessPiece *piece = pieceAt(fromRow, fromCol);
-    if (!piece)
+    int fromIndex = m_board[fromRow][fromCol];
+    if (fromIndex < 0 || fromIndex >= m_pieces.size())
+        return false;
+
+    if (!m_pieces[fromIndex].isValid())
         return false;
 
     // 移除目标位置的棋子（吃子）
     removePiece(toRow, toCol);
 
     // 移动棋子
-    piece->setPosition(toRow, toCol);
-    m_board[toRow][toCol] = piece;
-    m_board[fromRow][fromCol] = nullptr;
+    m_pieces[fromIndex].setPosition(toRow, toCol);
+    m_board[toRow][toCol] = fromIndex;
+    m_board[fromRow][fromCol] = -1;
 
     return true;
 }
@@ -163,13 +176,20 @@ bool Board::isInOwnHalf(int row, int col, PieceColor color)
 
 QList<ChessPiece> Board::getAllPieces() const
 {
-    return m_pieces;
+    // 只返回有效的棋子
+    QList<ChessPiece> validPieces;
+    for (const ChessPiece &piece : m_pieces) {
+        if (piece.isValid()) {
+            validPieces.append(piece);
+        }
+    }
+    return validPieces;
 }
 
 ChessPiece* Board::findKing(PieceColor color)
 {
     for (ChessPiece &piece : m_pieces) {
-        if (piece.type() == PieceType::King && piece.color() == color) {
+        if (piece.isValid() && piece.type() == PieceType::King && piece.color() == color) {
             return &piece;
         }
     }
@@ -197,6 +217,6 @@ void Board::print() const
 void Board::addPiece(const ChessPiece &piece)
 {
     m_pieces.append(piece);
-    ChessPiece &newPiece = m_pieces.last();
-    m_board[piece.row()][piece.col()] = &newPiece;
+    int newIndex = m_pieces.size() - 1;
+    m_board[piece.row()][piece.col()] = newIndex;
 }

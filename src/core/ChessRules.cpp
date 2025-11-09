@@ -295,3 +295,41 @@ QList<QPoint> ChessRules::getLegalMoves(const Board &board, int row, int col)
 
     return moves;
 }
+
+bool ChessRules::hasLegalMoves(const Board &board, PieceColor color)
+{
+    // 遍历所有己方棋子
+    QList<ChessPiece> allPieces = board.getAllPieces();
+    for (const ChessPiece &piece : allPieces) {
+        if (piece.color() == color) {
+            // 检查这个棋子是否有合法走法
+            QList<QPoint> moves = getLegalMoves(board, piece.row(), piece.col());
+            if (!moves.isEmpty()) {
+                return true;  // 找到至少一个合法走法
+            }
+        }
+    }
+    return false;  // 没有任何合法走法
+}
+
+bool ChessRules::isCheckmate(const Board &board, PieceColor kingColor)
+{
+    // 将死 = 被将军 + 没有合法走法可以解将
+    if (!isInCheck(board, kingColor)) {
+        return false;  // 没有被将军，不是将死
+    }
+
+    // 被将军了，检查是否有走法可以解将
+    return !hasLegalMoves(board, kingColor);
+}
+
+bool ChessRules::isStalemate(const Board &board, PieceColor currentTurn)
+{
+    // 困毙 = 没有被将军 + 没有合法走法（和棋）
+    if (isInCheck(board, currentTurn)) {
+        return false;  // 被将军了，不是困毙
+    }
+
+    // 没有被将军，检查是否有合法走法
+    return !hasLegalMoves(board, currentTurn);
+}

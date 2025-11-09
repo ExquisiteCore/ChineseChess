@@ -53,8 +53,8 @@ public:
     void print() const;
 
 private:
-    // 二维数组存储棋盘，nullptr 表示空位
-    ChessPiece* m_board[ROWS][COLS];
+    // 二维数组存储棋盘，-1 表示空位，否则存储 m_pieces 中的索引
+    int m_board[ROWS][COLS];
 
     // 棋子池（实际存储棋子对象）
     QList<ChessPiece> m_pieces;

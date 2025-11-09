@@ -13,6 +13,7 @@ class ChessBoardModel : public QAbstractListModel
     Q_PROPERTY(bool isRedTurn READ isRedTurn WRITE setIsRedTurn NOTIFY isRedTurnChanged)
     Q_PROPERTY(int liftedPieceIndex READ liftedPieceIndex WRITE setLiftedPieceIndex NOTIFY liftedPieceIndexChanged)
     Q_PROPERTY(QString fenString READ fenString NOTIFY fenStringChanged)
+    Q_PROPERTY(QString gameStatus READ gameStatus NOTIFY gameStatusChanged)
 
 public:
     enum ChessPieceRoles {
@@ -38,6 +39,8 @@ public:
 
     QString fenString() const { return m_position.toFen(); }
 
+    QString gameStatus() const { return m_gameStatus; }
+
     // 获取 Position 对象
     Position& position() { return m_position; }
     const Position& position() const { return m_position; }
@@ -59,13 +62,17 @@ signals:
     void liftedPieceIndexChanged();
     void fenStringChanged();
     void boardChanged();
+    void gameStatusChanged();
+    void gameOver(const QString &result);  // 游戏结束信号
 
 private:
     void rebuildPiecesList();  // 从 Position 重建棋子列表
+    void checkGameStatus();     // 检查游戏状态
 
     Position m_position;              // 核心局面对象
     QList<ChessPiece> m_piecesList;   // 用于 QML 显示的棋子列表
     int m_liftedPieceIndex;           // 当前悬浮的棋子索引
+    QString m_gameStatus;             // 游戏状态文本
 };
 
 #endif // CHESSBOARDMODEL_H

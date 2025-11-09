@@ -4,6 +4,7 @@
 ChessBoardModel::ChessBoardModel(QObject *parent)
     : QAbstractListModel(parent)
     , m_liftedPieceIndex(-1)
+    , m_gameStatus("进行中")
 {
     // 初始化为开局局面
     m_position.board().initializeStartPosition();
@@ -159,6 +160,9 @@ bool ChessBoardModel::movePiece(int fromIndex, int toIndex)
     emit fenStringChanged();
     emit boardChanged();
 
+    // 检查游戏状态（将军、将死、困毙）
+    checkGameStatus();
+
     qDebug() << "移动成功: " << fromRow << fromCol << "->" << toRow << toCol;
     return true;
 }
@@ -203,6 +207,9 @@ bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
     emit fenStringChanged();
     emit boardChanged();
 
+    // 检查游戏状态（将军、将死、困毙）
+    checkGameStatus();
+
     qDebug() << "移动成功: " << fromRow << fromCol << "->" << toRow << toCol;
     return true;
 }
@@ -244,6 +251,9 @@ void ChessBoardModel::resetBoard()
     emit isRedTurnChanged();
     emit fenStringChanged();
     emit boardChanged();
+
+    // 重置后检查游戏状态
+    checkGameStatus();
 }
 
 bool ChessBoardModel::loadFromFen(const QString &fen)
@@ -277,4 +287,41 @@ void ChessBoardModel::printDebugInfo()
 void ChessBoardModel::rebuildPiecesList()
 {
     m_piecesList = m_position.board().getAllPieces();
+}
+
+void ChessBoardModel::checkGameStatus()
+{
+    PieceColor currentColor = m_position.currentTurn();
+    QString colorName = (currentColor == PieceColor::Red) ? "红方" : "黑方";
+    QString opponentName = (currentColor == PieceColor::Red) ? "黑方" : "红方";
+
+    // 检查将死
+    if (ChessRules::isCheckmate(m_position.board(), currentColor)) {
+        m_gameStatus = opponentName + "胜 - " + colorName + "被将死";
+        qDebug() << "游戏结束:" << m_gameStatus;
+        emit gameOver(m_gameStatus);
+        emit gameStatusChanged();
+        return;
+    }
+
+    // 检查困毙（和棋）
+    if (ChessRules::isStalemate(m_position.board(), currentColor)) {
+        m_gameStatus = "和棋 - " + colorName + "被困毙";
+        qDebug() << "游戏结束:" << m_gameStatus;
+        emit gameOver(m_gameStatus);
+        emit gameStatusChanged();
+        return;
+    }
+
+    // 检查将军
+    if (ChessRules::isInCheck(m_position.board(), currentColor)) {
+        m_gameStatus = colorName + "被将军！";
+        qDebug() << m_gameStatus;
+        emit gameStatusChanged();
+        return;
+    }
+
+    // 正常进行中
+    m_gameStatus = colorName + "走棋";
+    emit gameStatusChanged();
 }

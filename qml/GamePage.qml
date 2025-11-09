@@ -48,7 +48,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             Text {
-                text: "当前回合: 红方"
+                text: "当前回合: " + (chessBoard.isRedTurn ? "红方" : "黑方")
                 font.pixelSize: 20
                 font.bold: true
                 color: "white"
@@ -58,7 +58,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             Button {
-                text: "悔棋"
+                text: "切换回合"
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 40
 
@@ -75,6 +75,11 @@ Rectangle {
                     radius: 5
                     border.color: "#ffd700"
                     border.width: 1
+                }
+
+                onClicked: {
+                    chessBoard.isRedTurn = !chessBoard.isRedTurn
+                    chessBoard.liftedPieceIndex = -1  // 切换回合时放下棋子
                 }
             }
 
@@ -121,6 +126,7 @@ Rectangle {
 
             // 棋盘
             ChessBoard {
+                id: chessBoard
                 anchors.fill: parent
                 anchors.margins: 20
             }

@@ -15,6 +15,10 @@ Rectangle {
     property real offsetY: (height - boardHeight) / 2 // 垂直偏移（居中）
     property real lineWidth: 2    // 线条宽度
 
+    // 游戏状态
+    property bool isRedTurn: true        // 当前是否为红方回合
+    property int liftedPieceIndex: -1    // 当前悬浮的棋子索引（-1表示无）
+
     // 棋子数据模型
     ListModel {
         id: piecesModel
@@ -240,17 +244,34 @@ Rectangle {
     Repeater {
         model: piecesModel
         delegate: ChessPiece {
+            id: piece
             pieceType: model.pieceType
             isRed: model.isRed
             row: model.row
             col: model.col
             pieceSize: gridSize * 0.9
 
+            // 根据索引控制悬浮状态
+            lifted: liftedPieceIndex === model.index
+
             // 居中对齐到交叉点
             x: gridToX(model.col) - width / 2
             y: gridToY(model.row) - height / 2
 
             onClicked: {
+                // 检查是否为当前回合的棋子
+                if (model.isRed !== isRedTurn) {
+                    console.log("不是你的回合！当前是" + (isRedTurn ? "红方" : "黑方") + "回合")
+                    return
+                }
+
+                // 单选逻辑：如果点击的是当前悬浮的棋子，则放下；否则切换到新棋子
+                if (liftedPieceIndex === model.index) {
+                    liftedPieceIndex = -1  // 放下当前棋子
+                } else {
+                    liftedPieceIndex = model.index  // 提起新棋子
+                }
+
                 console.log("点击了棋子:", model.pieceType, "位置:", model.row, model.col)
             }
         }

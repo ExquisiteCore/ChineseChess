@@ -172,18 +172,26 @@ Rectangle {
     }
 
     // 游戏区域
-    Item {
+    RowLayout {
         anchors.top: topBar.bottom
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.margins: 20
+        spacing: 20
+
+        // 左侧弹性空间（较小）
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
+        }
 
         // 棋盘容器
         Rectangle {
             id: boardContainer
-            anchors.centerIn: parent
-            width: Math.min(parent.width * 0.7, parent.height * 0.9)
-            height: width * 1.1
+            Layout.preferredWidth: Math.min(parent.width * 0.6, parent.height * 0.9)
+            Layout.preferredHeight: Layout.preferredWidth * 1.1
+            Layout.alignment: Qt.AlignVCenter
             color: "#daa520"
             radius: 10
             border.color: "#8b4513"
@@ -199,12 +207,9 @@ Rectangle {
 
         // 右侧信息面板
         Rectangle {
-            anchors.left: boardContainer.right
-            anchors.top: boardContainer.top
-            anchors.right: parent.right
-            anchors.bottom: boardContainer.bottom
-            anchors.leftMargin: 20
-            anchors.rightMargin: 20
+            Layout.preferredWidth: 250
+            Layout.fillHeight: true
+            Layout.alignment: Qt.AlignVCenter
             color: "#ffe4b5"
             radius: 10
             border.color: "#8b4513"
@@ -549,6 +554,12 @@ Rectangle {
 
                 Item { Layout.fillHeight: true }
             }
+        }
+
+        // 右侧弹性空间（较小）
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredWidth: 1
         }
     }
 

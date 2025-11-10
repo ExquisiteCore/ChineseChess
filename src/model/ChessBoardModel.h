@@ -74,22 +74,16 @@ public:
     const Position& position() const { return m_position; }
 
     // 游戏逻辑方法
-    Q_INVOKABLE bool canSelectPiece(int index) const;
     Q_INVOKABLE void selectPiece(int index);
-    Q_INVOKABLE void resetBoard();
     Q_INVOKABLE bool loadFromFen(const QString &fen);
-    Q_INVOKABLE void printDebugInfo();
 
     // 走棋相关
-    Q_INVOKABLE bool movePiece(int fromIndex, int toIndex);
     Q_INVOKABLE bool movePieceToPosition(int fromIndex, int toRow, int toCol);
-    Q_INVOKABLE QList<int> getValidMoves(int index) const;
 
     // 游戏控制
     Q_INVOKABLE void undoMove();
     Q_INVOKABLE void redoMove();
     Q_INVOKABLE void startNewGame();
-    Q_INVOKABLE QString exportGameHistory() const;
 
     // 保存/加载功能
     Q_INVOKABLE QString saveGame() const;         // 返回FEN字符串用于保存
@@ -126,7 +120,9 @@ private:
     void executeAIMove();       // 执行AI走棋（在定时器中调用）
     void onAIFinished();        // AI思考完成的槽函数
 
-    // 辅助方法：执行移动并更新模型
+    // 辅助方法
+    bool canSelectPiece(int index) const;  // 检查是否可以选择棋子
+    void resetBoardState();     // 重置棋盘状态的通用方法
     void updateModelAfterMove(int fromRow, int fromCol, int toRow, int toCol,
                               const ChessPiece *movedPiece, const ChessPiece *targetPiece);
 

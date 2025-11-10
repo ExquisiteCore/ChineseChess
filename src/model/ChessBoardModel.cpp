@@ -150,68 +150,6 @@ void ChessBoardModel::selectPiece(int index)
     qDebug() << "点击了棋子:" << piece.chineseName() << "位置:" << piece.row() << piece.col();
 }
 
-bool ChessBoardModel::movePiece(int fromIndex, int toIndex)
-{
-    if (fromIndex < 0 || fromIndex >= m_piecesList.count())
-        return false;
-    if (toIndex < 0 || toIndex >= m_piecesList.count())
-        return false;
-
-    const ChessPiece &fromPiece = m_piecesList[fromIndex];
-    const ChessPiece &toPiece = m_piecesList[toIndex];
-
-    int fromRow = fromPiece.row();
-    int fromCol = fromPiece.col();
-    int toRow = toPiece.row();
-    int toCol = toPiece.col();
-
-    // 检查移动是否合法
-    if (!ChessRules::isValidMove(m_position.board(), fromRow, fromCol, toRow, toCol)) {
-        qDebug() << "非法移动";
-        return false;
-    }
-
-    // 检查是否会导致自己被将军
-    if (ChessRules::wouldBeInCheck(m_position.board(), fromRow, fromCol, toRow, toCol)) {
-        qDebug() << "此移动会导致被将军，非法";
-        return false;
-    }
-
-    // 记录移动棋子和目标位置的棋子（用于历史记录）
-    const ChessPiece *movedPiece = m_position.board().pieceAt(fromRow, fromCol);
-    const ChessPiece *targetPiece = m_position.board().pieceAt(toRow, toCol);
-    QString capturedPiece = targetPiece ? targetPiece->chineseName() : "";
-
-    // 执行移动
-    m_position.board().movePiece(fromRow, fromCol, toRow, toCol);
-
-    // 切换回合
-    m_position.switchTurn();
-    m_position.incrementFullMoveNumber();
-
-    // 记录走棋历史（使用移动前保存的棋子信息）
-    if (movedPiece) {
-        m_gameController.recordMove(m_position, *movedPiece, fromRow, fromCol, toRow, toCol, capturedPiece);
-    }
-
-    // 重建模型
-    beginResetModel();
-    rebuildPiecesList();
-    setLiftedPieceIndex(-1);
-    endResetModel();
-
-    emit isRedTurnChanged();
-    emit fenStringChanged();
-    emit boardChanged();
-    emit moveHistoryChanged();
-
-    // 检查游戏状态（将军、将死、困毙）
-    checkGameStatus();
-
-    qDebug() << "移动成功: " << fromRow << fromCol << "->" << toRow << toCol;
-    return true;
-}
-
 bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
 {
     // 如果AI正在思考，禁止用户操作
@@ -274,30 +212,7 @@ bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
     return true;
 }
 
-QList<int> ChessBoardModel::getValidMoves(int index) const
-{
-    QList<int> validIndices;
-
-    if (index < 0 || index >= m_piecesList.count())
-        return validIndices;
-
-    const ChessPiece &piece = m_piecesList[index];
-    QList<QPoint> validPositions = ChessRules::getLegalMoves(m_position.board(), piece.row(), piece.col());
-
-    // 将位置转换为棋子索引
-    for (const QPoint &pos : validPositions) {
-        for (int i = 0; i < m_piecesList.count(); ++i) {
-            if (m_piecesList[i].row() == pos.y() && m_piecesList[i].col() == pos.x()) {
-                validIndices.append(i);
-                break;
-            }
-        }
-    }
-
-    return validIndices;
-}
-
-void ChessBoardModel::resetBoard()
+void ChessBoardModel::resetBoardState()
 {
     beginResetModel();
     m_position.board().initializeStartPosition();
@@ -344,12 +259,6 @@ bool ChessBoardModel::loadFromFen(const QString &fen)
 
     qDebug() << "成功加载 FEN:" << fen;
     return true;
-}
-
-void ChessBoardModel::printDebugInfo()
-{
-    qDebug() << "========== 调试信息 ==========";
-    m_position.print();
 }
 
 void ChessBoardModel::rebuildPiecesList()
@@ -512,31 +421,13 @@ void ChessBoardModel::redoMove()
 
 void ChessBoardModel::startNewGame()
 {
-    // 重置棋盘
-    beginResetModel();
-    m_position.board().initializeStartPosition();
-    m_position.setCurrentTurn(PieceColor::Red);
-    m_position.setHalfMoveClock(0);
-    m_position.setFullMoveNumber(1);
-    rebuildPiecesList();
-    setLiftedPieceIndex(-1);
-    endResetModel();
+    // 重置棋盘状态
+    resetBoardState();
 
     // 重置游戏控制器（传入当前局面的FEN）
     m_gameController.startNewGame(m_position.toFen());
 
-    emit isRedTurnChanged();
-    emit fenStringChanged();
-    emit boardChanged();
-    emit moveHistoryChanged();  // 通知历史记录已重置
-    checkGameStatus();
-
     qDebug() << "开始新游戏";
-}
-
-QString ChessBoardModel::exportGameHistory() const
-{
-    return m_gameController.exportToPGN();
 }
 
 QString ChessBoardModel::saveGame() const

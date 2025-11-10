@@ -1,20 +1,31 @@
 #include "ChessAI.h"
 #include <QDebug>
 #include <algorithm>
+#include <QRandomGenerator>
 
 ChessAI::ChessAI(QObject *parent)
     : QObject(parent)
     , m_difficulty(AIDifficulty::Medium)
-    , m_maxDepth(3)
+    , m_maxDepth(4)
     , m_nodesSearched(0)
     , m_pruneCount(0)
+    , m_ttHits(0)
+    , m_qsNodes(0)
+    , m_zobristInitialized(false)
 {
+    initZobristKeys();
+    // 初始化历史表和杀手移动
+    memset(m_historyTable, 0, sizeof(m_historyTable));
+    for (int i = 0; i < 10; i++) {
+        m_killerMoves[i][0] = AIMove();
+        m_killerMoves[i][1] = AIMove();
+    }
 }
 
 void ChessAI::setDifficulty(AIDifficulty difficulty)
 {
     m_difficulty = difficulty;
-    m_maxDepth = static_cast<int>(difficulty) + 1;  // Easy=2, Medium=3, Hard=4, Expert=5
+    m_maxDepth = static_cast<int>(difficulty) + 2;  // Easy=3, Medium=4, Hard=5, Expert=6
     qDebug() << "AI难度设置为:" << m_maxDepth << "层搜索";
 }
 
@@ -22,6 +33,11 @@ void ChessAI::resetStatistics()
 {
     m_nodesSearched = 0;
     m_pruneCount = 0;
+    m_ttHits = 0;
+    m_qsNodes = 0;
+    m_transpositionTable.clear();
+    // 清空历史表
+    memset(m_historyTable, 0, sizeof(m_historyTable));
 }
 
 AIMove ChessAI::getBestMove(const Position &position)
@@ -44,8 +60,18 @@ AIMove ChessAI::getBestMove(const Position &position)
         return AIMove();
     }
 
+    // 检查置换表中的最佳移动
+    quint64 posKey = computeZobristKey(searchPos);
+    AIMove *ttMove = nullptr;
+    if (m_transpositionTable.contains(posKey)) {
+        TTEntry &entry = m_transpositionTable[posKey];
+        if (entry.bestMove.isValid()) {
+            ttMove = &entry.bestMove;
+        }
+    }
+
     // 对移动进行排序以提高剪枝效率
-    sortMoves(allMoves, searchPos);
+    sortMoves(allMoves, searchPos, ttMove);
 
     AIMove bestMove;
     int bestScore = isMaximizing ? -INF : INF;
@@ -87,11 +113,14 @@ AIMove ChessAI::getBestMove(const Position &position)
         }
     }
 
+    // 存储到置换表
+    storeTranspositionTable(posKey, m_maxDepth, bestScore, TTEntry::EXACT, bestMove);
+
     qDebug() << "最佳移动:" << bestMove.fromRow << bestMove.fromCol
              << "->" << bestMove.toRow << bestMove.toCol
              << "评分:" << bestScore;
-    qDebug() << "搜索节点数:" << m_nodesSearched;
-    qDebug() << "剪枝次数:" << m_pruneCount;
+    qDebug() << "搜索节点数:" << m_nodesSearched << "(静态搜索:" << m_qsNodes << ")";
+    qDebug() << "剪枝次数:" << m_pruneCount << "置换表命中:" << m_ttHits;
 
     emit moveFound(bestMove.fromRow, bestMove.fromCol, bestMove.toRow, bestMove.toCol, bestScore);
 
@@ -102,9 +131,12 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
 {
     m_nodesSearched++;
 
-    // 叶子节点：返回评估值
-    if (depth == 0) {
-        return evaluatePosition(position);
+    // 检查置换表
+    quint64 posKey = computeZobristKey(position);
+    int ttScore;
+    if (probeTranspositionTable(posKey, depth, alpha, beta, ttScore)) {
+        m_ttHits++;
+        return ttScore;
     }
 
     PieceColor currentColor = position.currentTurn();
@@ -112,23 +144,44 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
     // 检查游戏结束状态
     if (ChessRules::isCheckmate(position.board(), currentColor)) {
         // 将死：对搜索方来说是最坏的情况
-        return isMaximizing ? -MATE_SCORE + (m_maxDepth - depth) : MATE_SCORE - (m_maxDepth - depth);
+        int score = isMaximizing ? -MATE_SCORE + (m_maxDepth - depth) : MATE_SCORE - (m_maxDepth - depth);
+        storeTranspositionTable(posKey, depth, score, TTEntry::EXACT, AIMove());
+        return score;
     }
 
     if (ChessRules::isStalemate(position.board(), currentColor)) {
         // 困毙：和棋
+        storeTranspositionTable(posKey, depth, 0, TTEntry::EXACT, AIMove());
         return 0;
+    }
+
+    // 叶子节点：进入静态搜索
+    if (depth == 0) {
+        int score = quiescence(position, alpha, beta, isMaximizing);
+        storeTranspositionTable(posKey, 0, score, TTEntry::EXACT, AIMove());
+        return score;
     }
 
     // 生成所有可能的移动
     QList<AIMove> moves = generateAllMoves(position, currentColor);
 
     if (moves.isEmpty()) {
+        storeTranspositionTable(posKey, depth, 0, TTEntry::EXACT, AIMove());
         return 0;  // 无棋可走，和棋
     }
 
-    // 移动排序
-    sortMoves(moves, position);
+    // 移动排序（使用置换表、杀手移动、历史启发）
+    AIMove *ttMove = nullptr;
+    if (m_transpositionTable.contains(posKey)) {
+        TTEntry &entry = m_transpositionTable[posKey];
+        if (entry.bestMove.isValid()) {
+            ttMove = &entry.bestMove;
+        }
+    }
+    sortMoves(moves, position, ttMove);
+
+    AIMove bestMove;
+    TTEntry::Flag flag = TTEntry::UPPER_BOUND;
 
     if (isMaximizing) {
         // 最大化节点（红方）
@@ -145,16 +198,28 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
             // 递归搜索
             int eval = minimax(tempPos, depth - 1, alpha, beta, false);
 
-            maxEval = std::max(maxEval, eval);
+            if (eval > maxEval) {
+                maxEval = eval;
+                bestMove = move;
+            }
             alpha = std::max(alpha, eval);
 
             // Beta剪枝
             if (beta <= alpha) {
                 m_pruneCount++;
+                // 更新杀手移动和历史表
+                if (m_killerMoves[depth][0].fromRow != move.fromRow || m_killerMoves[depth][0].fromCol != move.fromCol) {
+                    m_killerMoves[depth][1] = m_killerMoves[depth][0];
+                    m_killerMoves[depth][0] = move;
+                }
+                m_historyTable[move.fromRow][move.fromCol][move.toRow][move.toCol] += depth * depth;
+                flag = TTEntry::LOWER_BOUND;
                 break;
             }
         }
 
+        if (maxEval > alpha) flag = TTEntry::EXACT;
+        storeTranspositionTable(posKey, depth, maxEval, flag, bestMove);
         return maxEval;
     } else {
         // 最小化节点（黑方）
@@ -171,17 +236,83 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
             // 递归搜索
             int eval = minimax(tempPos, depth - 1, alpha, beta, true);
 
-            minEval = std::min(minEval, eval);
+            if (eval < minEval) {
+                minEval = eval;
+                bestMove = move;
+            }
             beta = std::min(beta, eval);
 
             // Alpha剪枝
             if (beta <= alpha) {
                 m_pruneCount++;
+                // 更新杀手移动和历史表
+                if (m_killerMoves[depth][0].fromRow != move.fromRow || m_killerMoves[depth][0].fromCol != move.fromCol) {
+                    m_killerMoves[depth][1] = m_killerMoves[depth][0];
+                    m_killerMoves[depth][0] = move;
+                }
+                m_historyTable[move.fromRow][move.fromCol][move.toRow][move.toCol] += depth * depth;
+                flag = TTEntry::LOWER_BOUND;
                 break;
             }
         }
 
+        if (minEval < beta) flag = TTEntry::EXACT;
+        storeTranspositionTable(posKey, depth, minEval, flag, bestMove);
         return minEval;
+    }
+}
+
+// 静态搜索（解决水平线效应）
+int ChessAI::quiescence(Position &position, int alpha, int beta, bool isMaximizing)
+{
+    m_qsNodes++;
+
+    // 站立评估
+    int standPat = evaluatePositionFast(position);
+
+    if (isMaximizing) {
+        if (standPat >= beta) return beta;
+        if (standPat > alpha) alpha = standPat;
+    } else {
+        if (standPat <= alpha) return alpha;
+        if (standPat < beta) beta = standPat;
+    }
+
+    // 只搜索吃子移动
+    PieceColor currentColor = position.currentTurn();
+    QList<AIMove> captureMoves = generateCaptureMoves(position, currentColor);
+
+    if (captureMoves.isEmpty()) {
+        return standPat;
+    }
+
+    // 对吃子移动排序
+    sortMoves(captureMoves, position);
+
+    if (isMaximizing) {
+        for (const AIMove &move : captureMoves) {
+            Position tempPos = position;
+            tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
+            tempPos.switchTurn();
+
+            int score = quiescence(tempPos, alpha, beta, false);
+
+            if (score >= beta) return beta;
+            if (score > alpha) alpha = score;
+        }
+        return alpha;
+    } else {
+        for (const AIMove &move : captureMoves) {
+            Position tempPos = position;
+            tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
+            tempPos.switchTurn();
+
+            int score = quiescence(tempPos, alpha, beta, true);
+
+            if (score <= alpha) return alpha;
+            if (score < beta) beta = score;
+        }
+        return beta;
     }
 }
 
@@ -210,212 +341,172 @@ QList<AIMove> ChessAI::generateAllMoves(const Position &position, PieceColor col
     return moves;
 }
 
+QList<AIMove> ChessAI::generateCaptureMoves(const Position &position, PieceColor color)
+{
+    QList<AIMove> moves;
+
+    // 遍历棋盘上的所有己方棋子，只生成吃子移动
+    for (int fromRow = 0; fromRow < Board::ROWS; ++fromRow) {
+        for (int fromCol = 0; fromCol < Board::COLS; ++fromCol) {
+            const ChessPiece *piece = position.board().pieceAt(fromRow, fromCol);
+
+            if (!piece || !piece->isValid() || piece->color() != color) {
+                continue;
+            }
+
+            QList<QPoint> legalMoves = ChessRules::getLegalMoves(position.board(), fromRow, fromCol);
+
+            for (const QPoint &dest : legalMoves) {
+                const ChessPiece *target = position.board().pieceAt(dest.y(), dest.x());
+                // 只添加吃子移动
+                if (target && target->isValid() && target->color() != color) {
+                    moves.append(AIMove(fromRow, fromCol, dest.y(), dest.x()));
+                }
+            }
+        }
+    }
+
+    return moves;
+}
+
+// 完整评估（带开销较大的计算）
 int ChessAI::evaluatePosition(const Position &position)
+{
+    return evaluatePositionFast(position);
+}
+
+// 快速评估（只计算材料+位置价值，不计算灵活性）
+int ChessAI::evaluatePositionFast(const Position &position)
 {
     int score = 0;
 
-    // 1. 棋子材料价值
+    // 检查将军状态
+    if (ChessRules::isInCheck(position.board(), PieceColor::Red)) {
+        score -= 50;
+    }
+    if (ChessRules::isInCheck(position.board(), PieceColor::Black)) {
+        score += 50;
+    }
+
+    // 计算材料和位置价值
     for (int row = 0; row < Board::ROWS; ++row) {
         for (int col = 0; col < Board::COLS; ++col) {
             const ChessPiece *piece = position.board().pieceAt(row, col);
             if (piece && piece->isValid()) {
-                int value = getPieceValue(piece);
-                int posValue = getPositionValue(piece);
+                int value = getPieceValue(piece->type(), row, col, piece->color());
 
                 if (piece->color() == PieceColor::Red) {
-                    score += value + posValue;
+                    score += value;
                 } else {
-                    score -= value + posValue;
+                    score -= value;
                 }
             }
         }
     }
-
-    // 2. 灵活性（可走步数）
-    score += getMobilityScore(position, PieceColor::Red);
-    score -= getMobilityScore(position, PieceColor::Black);
-
-    // 3. 将帅安全性
-    score += getKingSafetyScore(position, PieceColor::Red);
-    score -= getKingSafetyScore(position, PieceColor::Black);
-
-    // 4. 控制中心
-    score += getCenterControlScore(position, PieceColor::Red);
-    score -= getCenterControlScore(position, PieceColor::Black);
 
     return score;
 }
 
-int ChessAI::getPieceValue(const ChessPiece *piece) const
+int ChessAI::getPieceBaseValue(PieceType type) const
 {
-    if (!piece || !piece->isValid()) {
-        return 0;
-    }
-
-    // 中国象棋棋子价值（单位：分）
-    switch (piece->type()) {
+    switch (type) {
     case PieceType::King:
-        return 10000;  // 将/帅：无价（但需要一个值用于计算）
+        return 10000;  // 将/帅
     case PieceType::Rook:
-        return 600;    // 车：最强大的棋子
-    case PieceType::Cannon:
-        return 300;    // 炮：开局强，残局弱
+        return 1000;   // 车
     case PieceType::Horse:
-        return 300;    // 马：灵活但易被蹩
+        return 350;    // 马
+    case PieceType::Cannon:
+        return 350;    // 炮
     case PieceType::Advisor:
-        return 120;    // 士：保护将帅
+        return 200;    // 士
     case PieceType::Elephant:
-        return 120;    // 象/相：防守棋子
+        return 200;    // 象
     case PieceType::Pawn:
-        return 100;    // 兵/卒：过河后价值增加
+        return 100;    // 兵
     default:
         return 0;
     }
 }
 
-int ChessAI::getPositionValue(const ChessPiece *piece) const
+// 获取棋子价值（基础价值+位置价值）
+int ChessAI::getPieceValue(PieceType type, int row, int col, PieceColor color) const
 {
-    if (!piece || !piece->isValid()) {
-        return 0;
-    }
+    int baseValue = getPieceBaseValue(type);
 
-    int row = piece->row();
-    int col = piece->col();
+    // 黑方需要翻转行坐标
+    int posRow = (color == PieceColor::Black) ? (9 - row) : row;
+
     int posValue = 0;
-
-    // 根据棋子类型和位置给予额外分数
-    switch (piece->type()) {
-    case PieceType::Pawn: {
-        // 兵/卒：过河后价值翻倍，越靠近敌方越有价值
-        bool crossed = !Board::isInOwnHalf(row, col, piece->color());
-        if (crossed) {
-            posValue += 50;  // 过河奖励
-            // 越靠近敌方底线越有价值
-            int advanceBonus = (piece->color() == PieceColor::Red) ? (9 - row) * 10 : row * 10;
-            posValue += advanceBonus;
-        }
-        // 中路兵更有价值
-        if (col >= 3 && col <= 5) {
-            posValue += 10;
-        }
+    switch (type) {
+    case PieceType::Pawn:
+        posValue = PAWN_POS_VALUE[posRow][col];
         break;
-    }
+    case PieceType::Advisor:
+        posValue = ADVISOR_POS_VALUE[posRow][col];
+        break;
+    case PieceType::Elephant:
+        posValue = ELEPHANT_POS_VALUE[posRow][col];
+        break;
     case PieceType::Horse:
-    case PieceType::Cannon:
-        // 马和炮：中心位置更有价值
-        if (row >= 3 && row <= 6 && col >= 3 && col <= 5) {
-            posValue += 20;
-        }
+        posValue = HORSE_POS_VALUE[posRow][col];
         break;
     case PieceType::Rook:
-        // 车：在敌方半场更有威胁
-        if (!Board::isInOwnHalf(row, col, piece->color())) {
-            posValue += 30;
-        }
+        posValue = ROOK_POS_VALUE[posRow][col];
+        break;
+    case PieceType::Cannon:
+        posValue = CANNON_POS_VALUE[posRow][col];
+        break;
+    case PieceType::King:
+        posValue = KING_POS_VALUE[posRow][col];
         break;
     default:
         break;
     }
 
-    return posValue;
+    return baseValue + posValue;
 }
 
-int ChessAI::getMobilityScore(const Position &position, PieceColor color)
+// 移动排序（使用多种启发）
+void ChessAI::sortMoves(QList<AIMove> &moves, const Position &position, const AIMove *ttMove)
 {
-    int mobility = 0;
+    int depth = m_maxDepth - (m_nodesSearched % m_maxDepth);  // 近似深度
 
-    // 计算该方所有棋子的可走步数
-    for (int row = 0; row < Board::ROWS; ++row) {
-        for (int col = 0; col < Board::COLS; ++col) {
-            const ChessPiece *piece = position.board().pieceAt(row, col);
-            if (piece && piece->isValid() && piece->color() == color) {
-                QList<QPoint> moves = ChessRules::getLegalMoves(position.board(), row, col);
-                mobility += moves.size();
-            }
-        }
-    }
-
-    // 灵活性得分（每个可走步2分）
-    return mobility * 2;
-}
-
-int ChessAI::getKingSafetyScore(const Position &position, PieceColor color)
-{
-    int safety = 0;
-
-    ChessPiece *king = const_cast<Board&>(position.board()).findKing(color);
-    if (!king) {
-        return -10000;  // 没有将/帅，极度危险
-    }
-
-    // 检查是否被将军
-    if (ChessRules::isInCheck(position.board(), color)) {
-        safety -= 500;  // 被将军惩罚
-    }
-
-    int kingRow = king->row();
-    int kingCol = king->col();
-
-    // 检查将/帅周围的保护
-    int protectors = 0;
-    const int dr[] = {-1, 1, 0, 0};
-    const int dc[] = {0, 0, -1, 1};
-
-    for (int i = 0; i < 4; ++i) {
-        int newRow = kingRow + dr[i];
-        int newCol = kingCol + dc[i];
-
-        if (Board::isValidPosition(newRow, newCol)) {
-            const ChessPiece *neighbor = position.board().pieceAt(newRow, newCol);
-            if (neighbor && neighbor->isValid() && neighbor->color() == color) {
-                if (neighbor->type() == PieceType::Advisor) {
-                    protectors += 2;  // 士的保护价值更高
-                } else {
-                    protectors += 1;
-                }
-            }
-        }
-    }
-
-    safety += protectors * 20;
-
-    return safety;
-}
-
-int ChessAI::getCenterControlScore(const Position &position, PieceColor color)
-{
-    int control = 0;
-
-    // 中心区域（河界附近）
-    const int centerRows[] = {4, 5};
-    const int centerCols[] = {3, 4, 5};
-
-    for (int row : centerRows) {
-        for (int col : centerCols) {
-            const ChessPiece *piece = position.board().pieceAt(row, col);
-            if (piece && piece->isValid() && piece->color() == color) {
-                // 控制中心区域的棋子加分
-                control += 15;
-
-                // 强力棋子控制中心更有价值
-                if (piece->type() == PieceType::Rook || piece->type() == PieceType::Cannon) {
-                    control += 10;
-                }
-            }
-        }
-    }
-
-    return control;
-}
-
-void ChessAI::sortMoves(QList<AIMove> &moves, const Position &position)
-{
     // 使用快速评估给每个移动打分
     for (AIMove &move : moves) {
-        move.score = quickEvaluateMove(position, move);
+        int score = 0;
+
+        // 1. 置换表移动（最高优先级）
+        if (ttMove && ttMove->fromRow == move.fromRow && ttMove->fromCol == move.fromCol &&
+            ttMove->toRow == move.toRow && ttMove->toCol == move.toCol) {
+            score = 1000000;
+        }
+        // 2. 杀手移动
+        else if (depth < 10) {
+            if ((m_killerMoves[depth][0].fromRow == move.fromRow && m_killerMoves[depth][0].fromCol == move.fromCol &&
+                 m_killerMoves[depth][0].toRow == move.toRow && m_killerMoves[depth][0].toCol == move.toCol) ||
+                (m_killerMoves[depth][1].fromRow == move.fromRow && m_killerMoves[depth][1].fromCol == move.fromCol &&
+                 m_killerMoves[depth][1].toRow == move.toRow && m_killerMoves[depth][1].toCol == move.toCol)) {
+                score = 500000;
+            }
+        }
+
+        // 3. MVV-LVA（吃子价值）
+        const ChessPiece *target = position.board().pieceAt(move.toRow, move.toCol);
+        if (target && target->isValid()) {
+            const ChessPiece *attacker = position.board().pieceAt(move.fromRow, move.fromCol);
+            if (attacker && attacker->isValid()) {
+                score += getPieceBaseValue(target->type()) * 10 - getPieceBaseValue(attacker->type());
+            }
+        }
+
+        // 4. 历史启发
+        score += m_historyTable[move.fromRow][move.fromCol][move.toRow][move.toCol];
+
+        move.score = score;
     }
 
-    // 按分数降序排序（好的移动优先搜索）
+    // 按分数降序排序
     std::sort(moves.begin(), moves.end(), [](const AIMove &a, const AIMove &b) {
         return a.score > b.score;
     });
@@ -428,27 +519,192 @@ int ChessAI::quickEvaluateMove(const Position &position, const AIMove &move)
     const ChessPiece *movingPiece = position.board().pieceAt(move.fromRow, move.fromCol);
     const ChessPiece *targetPiece = position.board().pieceAt(move.toRow, move.toCol);
 
-    // 吃子移动优先
+    // 吃子移动
     if (targetPiece && targetPiece->isValid()) {
-        score += getPieceValue(targetPiece) * 10;  // 吃子得分
-
-        // MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
-        // 用小子吃大子更好
-        score -= getPieceValue(movingPiece);
-    }
-
-    // 移动到中心位置
-    if (move.toRow >= 3 && move.toRow <= 6 && move.toCol >= 3 && move.toCol <= 5) {
-        score += 50;
-    }
-
-    // 将军的移动优先
-    Position tempPos = position;
-    tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
-    PieceColor enemyColor = (position.currentTurn() == PieceColor::Red) ? PieceColor::Black : PieceColor::Red;
-    if (ChessRules::isInCheck(tempPos.board(), enemyColor)) {
-        score += 1000;  // 将军高优先级
+        score += getPieceBaseValue(targetPiece->type()) * 10;
+        if (movingPiece && movingPiece->isValid()) {
+            score -= getPieceBaseValue(movingPiece->type());
+        }
     }
 
     return score;
 }
+
+// ============ 置换表和Zobrist哈希实现 ============
+
+void ChessAI::initZobristKeys()
+{
+    if (m_zobristInitialized) return;
+
+    QRandomGenerator *rng = QRandomGenerator::global();
+
+    for (int row = 0; row < 10; row++) {
+        for (int col = 0; col < 9; col++) {
+            for (int piece = 0; piece < 14; piece++) {
+                m_zobristTable[row][col][piece] = (quint64(rng->generate()) << 32) | rng->generate();
+            }
+        }
+    }
+
+    m_zobristInitialized = true;
+}
+
+quint64 ChessAI::computeZobristKey(const Position &position)
+{
+    quint64 key = 0;
+
+    for (int row = 0; row < Board::ROWS; ++row) {
+        for (int col = 0; col < Board::COLS; ++col) {
+            const ChessPiece *piece = position.board().pieceAt(row, col);
+            if (piece && piece->isValid()) {
+                int pieceIndex = static_cast<int>(piece->type()) + (piece->color() == PieceColor::Black ? 7 : 0);
+                key ^= m_zobristTable[row][col][pieceIndex];
+            }
+        }
+    }
+
+    return key;
+}
+
+bool ChessAI::probeTranspositionTable(quint64 key, int depth, int alpha, int beta, int &score)
+{
+    if (!m_transpositionTable.contains(key)) {
+        return false;
+    }
+
+    const TTEntry &entry = m_transpositionTable[key];
+
+    if (entry.depth < depth) {
+        return false;
+    }
+
+    if (entry.flag == TTEntry::EXACT) {
+        score = entry.score;
+        return true;
+    }
+
+    if (entry.flag == TTEntry::LOWER_BOUND && entry.score >= beta) {
+        score = entry.score;
+        return true;
+    }
+
+    if (entry.flag == TTEntry::UPPER_BOUND && entry.score <= alpha) {
+        score = entry.score;
+        return true;
+    }
+
+    return false;
+}
+
+void ChessAI::storeTranspositionTable(quint64 key, int depth, int score, TTEntry::Flag flag, const AIMove &bestMove)
+{
+    if (m_transpositionTable.size() >= TT_SIZE) {
+        if (!m_transpositionTable.contains(key) || m_transpositionTable[key].depth < depth) {
+            auto it = m_transpositionTable.begin();
+            m_transpositionTable.erase(it);
+        }
+    }
+
+    TTEntry entry;
+    entry.zobristKey = key;
+    entry.depth = depth;
+    entry.score = score;
+    entry.flag = flag;
+    entry.bestMove = bestMove;
+
+    m_transpositionTable[key] = entry;
+}
+
+// ============ 位置价值表定义 ============
+
+const int ChessAI::PAWN_POS_VALUE[10][9] = {
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0, -2,  0,  4,  0, -2,  0,  0},
+    { 2,  0,  8,  0,  8,  0,  8,  0,  2},
+    { 6,  12, 18, 18, 20, 18, 18, 12, 6},
+    { 10, 20, 30, 34, 40, 34, 30, 20, 10},
+    { 14, 26, 42, 60, 80, 60, 42, 26, 14},
+    { 18, 36, 56, 80, 120, 80, 56, 36, 18},
+    { 0,  3,  6,  9,  12,  9,  6,  3,  0}
+};
+
+const int ChessAI::ADVISOR_POS_VALUE[10][9] = {
+    { 0,  0,  0, 20,  0, 20,  0,  0,  0},
+    { 0,  0,  0,  0, 23,  0,  0,  0,  0},
+    { 0,  0,  0, 20,  0, 20,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0}
+};
+
+const int ChessAI::ELEPHANT_POS_VALUE[10][9] = {
+    { 0,  0, 20,  0,  0,  0, 20,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    {18,  0,  0,  0, 23,  0,  0,  0, 18},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0, 20,  0,  0,  0, 20,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0}
+};
+
+const int ChessAI::HORSE_POS_VALUE[10][9] = {
+    { 0, -3,  5,  4,  2,  4,  5, -3,  0},
+    {-3,  2,  4,  6,  10, 6,  4,  2, -3},
+    { 4,  6, 12, 11, 15, 11, 12, 6,  4},
+    { 2,  6,  8, 11, 11, 11,  8,  6,  2},
+    { 2,  12, 11, 15, 16, 15, 11, 12, 2},
+    { 0,  5,  7,  7,  14,  7,  7,  5,  0},
+    {-5,  2,  4,  8,  8,  8,  4,  2, -5},
+    {-6,  3,  2,  5,  4,  5,  2,  3, -6},
+    {-8, -3,  1,  4,  4,  4,  1, -3, -8},
+    {-10,-8, -6, -3, -1, -3, -6, -8, -10}
+};
+
+const int ChessAI::ROOK_POS_VALUE[10][9] = {
+    {-6,  5,  8,  8,  8,  8,  8,  5, -6},
+    { 6, 8,   10, 14, 15, 14, 10,  8,  6},
+    { 4,  6,  8,  12, 12, 12,  8,  6,  4},
+    {12, 16, 16, 20, 20, 20, 16, 16, 12},
+    {10, 14, 15, 17, 20, 17, 15, 14, 10},
+    { 6, 11, 13, 15, 16, 15, 13, 11,  6},
+    { 4, 6,   9,  10, 11, 10, 9,   6,  4},
+    { 2, 4,   7,  7,  8,  7,  7,   4,  2},
+    { 0, 3,   5,  5,  6,  5,  5,   3,  0},
+    {-4, 2,   4,  4,  5,  4,  4,   2, -4}
+};
+
+const int ChessAI::CANNON_POS_VALUE[10][9] = {
+    { 0,  0,  1,  0,  3,  0,  1,  0,  0},
+    { 0,  2,  4,  3,  4,  3,  4,  2,  0},
+    { 1,  0,  7,  4,  4,  4,  7,  0,  1},
+    { 0,  0,  7,  4,  4,  4,  7,  0,  0},
+    { 0,  1,  6,  7,  7,  7,  6,  1,  0},
+    {-1,  1,  2,  7,  8,  7,  2,  1, -1},
+    { 0,  3,  4,  4,  3,  4,  4,  3,  0},
+    { 0,  2,  2,  2,  2,  2,  2,  2,  0},
+    { 0,  1,  2,  3,  3,  3,  2,  1,  0},
+    { 0,  0,  1,  1,  2,  1,  1,  0,  0}
+};
+
+const int ChessAI::KING_POS_VALUE[10][9] = {
+    { 0,  0,  0,  8,  8,  8,  0,  0,  0},
+    { 0,  0,  0,  9,  9,  9,  0,  0,  0},
+    { 0,  0,  0, 10, 10, 10,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0},
+    { 0,  0,  0,  0,  0,  0,  0,  0,  0}
+};
+

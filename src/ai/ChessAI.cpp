@@ -11,6 +11,8 @@ ChessAI::ChessAI(QObject *parent)
     , m_pruneCount(0)
     , m_ttHits(0)
     , m_qsNodes(0)
+    , m_nullMoveCuts(0)
+    , m_lmrReductions(0)
     , m_zobristInitialized(false)
 {
     initZobristKeys();
@@ -35,7 +37,9 @@ void ChessAI::resetStatistics()
     m_pruneCount = 0;
     m_ttHits = 0;
     m_qsNodes = 0;
-    m_transpositionTable.clear();
+    m_nullMoveCuts = 0;
+    m_lmrReductions = 0;
+    // 不清空置换表，保留缓存以加速后续搜索
     // 清空历史表
     memset(m_historyTable, 0, sizeof(m_historyTable));
 }
@@ -89,8 +93,18 @@ AIMove ChessAI::getBestMove(const Position &position)
         tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
         tempPos.switchTurn();
 
-        // Minimax搜索
-        int score = minimax(tempPos, m_maxDepth - 1, -INF, INF, !isMaximizing);
+        // 使用PVS搜索（第一个移动使用全窗口，其他使用空窗口）
+        int score;
+        if (i == 0) {
+            // 第一个移动（最佳移动）使用全窗口搜索
+            score = pvs(tempPos, m_maxDepth - 1, -INF, INF, !isMaximizing, true);
+        } else {
+            // 其他移动先用空窗口搜索
+            score = pvs(tempPos, m_maxDepth - 1,
+                       isMaximizing ? bestScore : -INF,
+                       isMaximizing ? INF : bestScore,
+                       !isMaximizing, false);
+        }
 
         move.score = score;
 
@@ -121,13 +135,15 @@ AIMove ChessAI::getBestMove(const Position &position)
              << "评分:" << bestScore;
     qDebug() << "搜索节点数:" << m_nodesSearched << "(静态搜索:" << m_qsNodes << ")";
     qDebug() << "剪枝次数:" << m_pruneCount << "置换表命中:" << m_ttHits;
+    qDebug() << "空移动剪枝:" << m_nullMoveCuts << "LMR减少:" << m_lmrReductions;
 
     emit moveFound(bestMove.fromRow, bestMove.fromCol, bestMove.toRow, bestMove.toCol, bestScore);
 
     return bestMove;
 }
 
-int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool isMaximizing)
+// PVS搜索（主要变例搜索 - 比普通alpha-beta更快）
+int ChessAI::pvs(Position &position, int depth, int alpha, int beta, bool isMaximizing, bool isPV)
 {
     m_nodesSearched++;
 
@@ -143,23 +159,31 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
 
     // 检查游戏结束状态
     if (ChessRules::isCheckmate(position.board(), currentColor)) {
-        // 将死：对搜索方来说是最坏的情况
         int score = isMaximizing ? -MATE_SCORE + (m_maxDepth - depth) : MATE_SCORE - (m_maxDepth - depth);
         storeTranspositionTable(posKey, depth, score, TTEntry::EXACT, AIMove());
         return score;
     }
 
     if (ChessRules::isStalemate(position.board(), currentColor)) {
-        // 困毙：和棋
         storeTranspositionTable(posKey, depth, 0, TTEntry::EXACT, AIMove());
         return 0;
     }
 
     // 叶子节点：进入静态搜索
-    if (depth == 0) {
+    if (depth <= 0) {
         int score = quiescence(position, alpha, beta, isMaximizing);
         storeTranspositionTable(posKey, 0, score, TTEntry::EXACT, AIMove());
         return score;
+    }
+
+    // 空移动剪枝（Null Move Pruning）
+    // 条件：非PV节点、深度足够、不在将军状态
+    if (!isPV && depth >= 3 && !ChessRules::isInCheck(position.board(), currentColor)) {
+        int nullScore = nullMoveSearch(position, depth, beta, isMaximizing);
+        if ((isMaximizing && nullScore >= beta) || (!isMaximizing && nullScore <= alpha)) {
+            m_nullMoveCuts++;
+            return nullScore;
+        }
     }
 
     // 生成所有可能的移动
@@ -167,10 +191,10 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
 
     if (moves.isEmpty()) {
         storeTranspositionTable(posKey, depth, 0, TTEntry::EXACT, AIMove());
-        return 0;  // 无棋可走，和棋
+        return 0;
     }
 
-    // 移动排序（使用置换表、杀手移动、历史启发）
+    // 移动排序
     AIMove *ttMove = nullptr;
     if (m_transpositionTable.contains(posKey)) {
         TTEntry &entry = m_transpositionTable[posKey];
@@ -182,21 +206,39 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
 
     AIMove bestMove;
     TTEntry::Flag flag = TTEntry::UPPER_BOUND;
+    bool isFirstMove = true;
 
     if (isMaximizing) {
-        // 最大化节点（红方）
         int maxEval = -INF;
 
-        for (const AIMove &move : moves) {
-            // 创建临时局面
+        for (int i = 0; i < moves.size(); ++i) {
+            const AIMove &move = moves[i];
             Position tempPos = position;
-
-            // 执行移动
             tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
             tempPos.switchTurn();
 
-            // 递归搜索
-            int eval = minimax(tempPos, depth - 1, alpha, beta, false);
+            int eval;
+            int newDepth = depth - 1;
+
+            // Late Move Reduction (LMR) - 后期移动减少搜索深度
+            if (!isPV && i >= 4 && depth >= 3 && !ChessRules::isInCheck(position.board(), currentColor)) {
+                newDepth = depth - 2;  // 减少1层深度
+                m_lmrReductions++;
+            }
+
+            if (isFirstMove) {
+                // 第一个移动用全窗口搜索
+                eval = pvs(tempPos, newDepth, alpha, beta, false, isPV);
+                isFirstMove = false;
+            } else {
+                // PVS：先用空窗口搜索
+                eval = pvs(tempPos, newDepth, alpha, alpha + 1, false, false);
+
+                // 如果结果在窗口内，需要重新用全窗口搜索
+                if (eval > alpha && eval < beta) {
+                    eval = pvs(tempPos, newDepth, alpha, beta, false, isPV);
+                }
+            }
 
             if (eval > maxEval) {
                 maxEval = eval;
@@ -208,9 +250,11 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
             if (beta <= alpha) {
                 m_pruneCount++;
                 // 更新杀手移动和历史表
-                if (m_killerMoves[depth][0].fromRow != move.fromRow || m_killerMoves[depth][0].fromCol != move.fromCol) {
-                    m_killerMoves[depth][1] = m_killerMoves[depth][0];
-                    m_killerMoves[depth][0] = move;
+                if (depth < 10) {
+                    if (m_killerMoves[depth][0].fromRow != move.fromRow || m_killerMoves[depth][0].fromCol != move.fromCol) {
+                        m_killerMoves[depth][1] = m_killerMoves[depth][0];
+                        m_killerMoves[depth][0] = move;
+                    }
                 }
                 m_historyTable[move.fromRow][move.fromCol][move.toRow][move.toCol] += depth * depth;
                 flag = TTEntry::LOWER_BOUND;
@@ -222,19 +266,33 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
         storeTranspositionTable(posKey, depth, maxEval, flag, bestMove);
         return maxEval;
     } else {
-        // 最小化节点（黑方）
         int minEval = INF;
 
-        for (const AIMove &move : moves) {
-            // 创建临时局面
+        for (int i = 0; i < moves.size(); ++i) {
+            const AIMove &move = moves[i];
             Position tempPos = position;
-
-            // 执行移动
             tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
             tempPos.switchTurn();
 
-            // 递归搜索
-            int eval = minimax(tempPos, depth - 1, alpha, beta, true);
+            int eval;
+            int newDepth = depth - 1;
+
+            // Late Move Reduction (LMR)
+            if (!isPV && i >= 4 && depth >= 3 && !ChessRules::isInCheck(position.board(), currentColor)) {
+                newDepth = depth - 2;
+                m_lmrReductions++;
+            }
+
+            if (isFirstMove) {
+                eval = pvs(tempPos, newDepth, alpha, beta, true, isPV);
+                isFirstMove = false;
+            } else {
+                eval = pvs(tempPos, newDepth, beta - 1, beta, true, false);
+
+                if (eval > alpha && eval < beta) {
+                    eval = pvs(tempPos, newDepth, alpha, beta, true, isPV);
+                }
+            }
 
             if (eval < minEval) {
                 minEval = eval;
@@ -245,10 +303,11 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
             // Alpha剪枝
             if (beta <= alpha) {
                 m_pruneCount++;
-                // 更新杀手移动和历史表
-                if (m_killerMoves[depth][0].fromRow != move.fromRow || m_killerMoves[depth][0].fromCol != move.fromCol) {
-                    m_killerMoves[depth][1] = m_killerMoves[depth][0];
-                    m_killerMoves[depth][0] = move;
+                if (depth < 10) {
+                    if (m_killerMoves[depth][0].fromRow != move.fromRow || m_killerMoves[depth][0].fromCol != move.fromCol) {
+                        m_killerMoves[depth][1] = m_killerMoves[depth][0];
+                        m_killerMoves[depth][0] = move;
+                    }
                 }
                 m_historyTable[move.fromRow][move.fromCol][move.toRow][move.toCol] += depth * depth;
                 flag = TTEntry::LOWER_BOUND;
@@ -260,6 +319,27 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
         storeTranspositionTable(posKey, depth, minEval, flag, bestMove);
         return minEval;
     }
+}
+
+// 空移动剪枝搜索
+int ChessAI::nullMoveSearch(Position &position, int depth, int beta, bool isMaximizing)
+{
+    // 假设我方pass一次，对方能否超过beta？
+    Position tempPos = position;
+    tempPos.switchTurn();  // 直接切换回合，不走棋
+
+    // 使用减少的深度搜索（R=2）
+    int R = 2;
+    int score = pvs(tempPos, depth - 1 - R, beta - 1, beta, !isMaximizing, false);
+
+    return score;
+}
+
+// 保留原来的minimax作为备用
+int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool isMaximizing)
+{
+    // 现在直接调用PVS
+    return pvs(position, depth, alpha, beta, isMaximizing, true);
 }
 
 // 静态搜索（解决水平线效应）
@@ -598,13 +678,44 @@ bool ChessAI::probeTranspositionTable(quint64 key, int depth, int alpha, int bet
 
 void ChessAI::storeTranspositionTable(quint64 key, int depth, int score, TTEntry::Flag flag, const AIMove &bestMove)
 {
+    // 如果已存在该键
+    if (m_transpositionTable.contains(key)) {
+        TTEntry &existing = m_transpositionTable[key];
+        // 只有当新结果深度更深或相等时才替换（深度优先策略）
+        if (depth >= existing.depth) {
+            existing.zobristKey = key;
+            existing.depth = depth;
+            existing.score = score;
+            existing.flag = flag;
+            existing.bestMove = bestMove;
+        }
+        return;
+    }
+
+    // 如果表满了，需要替换
     if (m_transpositionTable.size() >= TT_SIZE) {
-        if (!m_transpositionTable.contains(key) || m_transpositionTable[key].depth < depth) {
-            auto it = m_transpositionTable.begin();
-            m_transpositionTable.erase(it);
+        // 查找深度最浅的项进行替换
+        quint64 worstKey = 0;
+        int minDepth = INF;
+
+        // 简化策略：只检查前100个项（避免遍历整个表）
+        int checked = 0;
+        for (auto it = m_transpositionTable.begin(); it != m_transpositionTable.end() && checked < 100; ++it, ++checked) {
+            if (it.value().depth < minDepth) {
+                minDepth = it.value().depth;
+                worstKey = it.key();
+            }
+        }
+
+        // 如果新项深度更深，则替换最浅项
+        if (depth > minDepth) {
+            m_transpositionTable.remove(worstKey);
+        } else {
+            return;  // 不存储浅度结果
         }
     }
 
+    // 存储新项
     TTEntry entry;
     entry.zobristKey = key;
     entry.depth = depth;

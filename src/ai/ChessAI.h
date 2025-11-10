@@ -73,6 +73,12 @@ private:
     // Minimax算法（带Alpha-Beta剪枝）
     int minimax(Position &position, int depth, int alpha, int beta, bool isMaximizing);
 
+    // PVS搜索（主要变例搜索）
+    int pvs(Position &position, int depth, int alpha, int beta, bool isMaximizing, bool isPV);
+
+    // 空移动剪枝
+    int nullMoveSearch(Position &position, int depth, int beta, bool isMaximizing);
+
     // 静态搜索（解决水平线效应）
     int quiescence(Position &position, int alpha, int beta, bool isMaximizing);
 
@@ -115,6 +121,8 @@ private:
     int m_pruneCount;        // Alpha-Beta剪枝次数
     int m_ttHits;            // 置换表命中次数
     int m_qsNodes;           // 静态搜索节点数
+    int m_nullMoveCuts;      // 空移动剪枝次数
+    int m_lmrReductions;     // LMR减少次数
 
     // 置换表
     QHash<quint64, TTEntry> m_transpositionTable;

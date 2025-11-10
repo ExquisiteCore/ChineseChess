@@ -258,43 +258,8 @@ bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
         m_gameController.recordMove(m_position, *movedPiece, fromRow, fromCol, toRow, toCol, capturedPiece);
     }
 
-    // 更新模型 - 使用细粒度更新而不是重建
-    // 1. 如果有被吃的棋子，先从列表中移除
-    if (targetPiece) {
-        // 找到被吃棋子在列表中的索引
-        int capturedIndex = -1;
-        for (int i = 0; i < m_piecesList.count(); ++i) {
-            if (m_piecesList[i].row() == toRow && m_piecesList[i].col() == toCol) {
-                capturedIndex = i;
-                break;
-            }
-        }
-
-        if (capturedIndex >= 0) {
-            beginRemoveRows(QModelIndex(), capturedIndex, capturedIndex);
-            m_piecesList.removeAt(capturedIndex);
-            endRemoveRows();
-
-            // 如果移动的棋子索引在被吃棋子之后，需要调整索引
-            if (fromIndex > capturedIndex) {
-                fromIndex--;
-            }
-        }
-    }
-
-    // 2. 更新移动棋子的位置
-    if (fromIndex >= 0 && fromIndex < m_piecesList.count()) {
-        m_piecesList[fromIndex] = ChessPiece(movedPiece->type(), movedPiece->color(), toRow, toCol);
-        QModelIndex changedIndex = index(fromIndex);
-        emit dataChanged(changedIndex, changedIndex);
-    }
-
-    setLiftedPieceIndex(-1);
-
-    emit isRedTurnChanged();
-    emit fenStringChanged();
-    emit boardChanged();
-    emit moveHistoryChanged();
+    // 更新模型（使用辅助方法）
+    updateModelAfterMove(fromRow, fromCol, toRow, toCol, movedPiece, targetPiece);
 
     // 检查游戏状态（将军、将死、困毙）
     checkGameStatus();
@@ -736,6 +701,19 @@ void ChessBoardModel::onAIFinished()
         m_gameController.recordMove(m_position, *movedPiece, fromRow, fromCol, toRow, toCol, capturedPiece);
     }
 
+    // 更新模型（使用辅助方法）
+    updateModelAfterMove(fromRow, fromCol, toRow, toCol, movedPiece, targetPiece);
+
+    // 检查游戏状态
+    checkGameStatus();
+
+    qDebug() << "AI走棋完成";
+}
+
+// 辅助方法：执行移动并更新模型
+void ChessBoardModel::updateModelAfterMove(int fromRow, int fromCol, int toRow, int toCol,
+                                            const ChessPiece *movedPiece, const ChessPiece *targetPiece)
+{
     // 找到移动的棋子在列表中的索引
     int fromIndex = -1;
     for (int i = 0; i < m_piecesList.count(); ++i) {
@@ -782,9 +760,4 @@ void ChessBoardModel::onAIFinished()
     emit fenStringChanged();
     emit boardChanged();
     emit moveHistoryChanged();
-
-    // 检查游戏状态
-    checkGameStatus();
-
-    qDebug() << "AI走棋完成";
 }

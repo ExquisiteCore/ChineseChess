@@ -126,6 +126,10 @@ private:
     void executeAIMove();       // 执行AI走棋（在定时器中调用）
     void onAIFinished();        // AI思考完成的槽函数
 
+    // 辅助方法：执行移动并更新模型
+    void updateModelAfterMove(int fromRow, int fromCol, int toRow, int toCol,
+                              const ChessPiece *movedPiece, const ChessPiece *targetPiece);
+
     Position m_position;              // 核心局面对象
     QList<ChessPiece> m_piecesList;   // 用于 QML 显示的棋子列表
     int m_liftedPieceIndex;           // 当前悬浮的棋子索引

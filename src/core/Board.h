@@ -16,6 +16,12 @@ public:
 
     Board();
 
+    // 复制构造函数（深拷贝）
+    Board(const Board &other);
+
+    // 赋值操作符（深拷贝）
+    Board& operator=(const Board &other);
+
     // 初始化棋盘到初始局面
     void initializeStartPosition();
 

@@ -6,6 +6,47 @@ Board::Board()
     clear();
 }
 
+// 复制构造函数（深拷贝）
+Board::Board(const Board &other)
+{
+    clear();
+
+    // 深拷贝所有棋子
+    for (int row = 0; row < ROWS; ++row) {
+        for (int col = 0; col < COLS; ++col) {
+            const ChessPiece *piece = other.pieceAt(row, col);
+            if (piece && piece->isValid()) {
+                // 创建新的智能指针，指向棋子的副本
+                auto newPiece = QSharedPointer<ChessPiece>::create(*piece);
+                m_board[row][col] = newPiece;
+                m_pieces.append(newPiece);
+            }
+        }
+    }
+}
+
+// 赋值操作符（深拷贝）
+Board& Board::operator=(const Board &other)
+{
+    if (this != &other) {
+        clear();
+
+        // 深拷贝所有棋子
+        for (int row = 0; row < ROWS; ++row) {
+            for (int col = 0; col < COLS; ++col) {
+                const ChessPiece *piece = other.pieceAt(row, col);
+                if (piece && piece->isValid()) {
+                    // 创建新的智能指针，指向棋子的副本
+                    auto newPiece = QSharedPointer<ChessPiece>::create(*piece);
+                    m_board[row][col] = newPiece;
+                    m_pieces.append(newPiece);
+                }
+            }
+        }
+    }
+    return *this;
+}
+
 void Board::clear()
 {
     // 清空棋盘（智能指针自动释放内存）

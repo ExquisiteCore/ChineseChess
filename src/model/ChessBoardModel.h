@@ -4,9 +4,11 @@
 #include <QAbstractListModel>
 #include <QString>
 #include <QPoint>
+#include <QTimer>
 #include "../core/Position.h"
 #include "../core/ChessRules.h"
 #include "../core/GameController.h"
+#include "../ai/ChessAI.h"
 
 // 棋盘数据模型（适配层，连接 C++ 核心和 QML UI）
 class ChessBoardModel : public QAbstractListModel
@@ -21,6 +23,9 @@ class ChessBoardModel : public QAbstractListModel
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY canRedoChanged)
     Q_PROPERTY(int moveCount READ moveCount NOTIFY moveCountChanged)
     Q_PROPERTY(QStringList moveHistory READ moveHistory NOTIFY moveHistoryChanged)
+    Q_PROPERTY(bool aiEnabled READ aiEnabled WRITE setAiEnabled NOTIFY aiEnabledChanged)
+    Q_PROPERTY(bool aiThinking READ aiThinking NOTIFY aiThinkingChanged)
+    Q_PROPERTY(int aiDifficulty READ aiDifficulty WRITE setAiDifficulty NOTIFY aiDifficultyChanged)
 
 public:
     enum ChessPieceRoles {
@@ -54,6 +59,14 @@ public:
     bool canRedo() const;
     int moveCount() const;
     QStringList moveHistory() const;
+
+    bool aiEnabled() const { return m_aiEnabled; }
+    void setAiEnabled(bool enabled);
+
+    bool aiThinking() const { return m_aiThinking; }
+
+    int aiDifficulty() const { return static_cast<int>(m_ai.getDifficulty()); }
+    void setAiDifficulty(int difficulty);
 
     // 获取 Position 对象
     Position& position() { return m_position; }
@@ -100,11 +113,16 @@ signals:
     void moveHistoryChanged();               // 历史记录改变
     void drawOffered(const QString &message);  // 提出和棋
     void hintShown();                        // 显示提示
+    void aiEnabledChanged();                 // AI启用状态改变
+    void aiThinkingChanged();                // AI思考状态改变
+    void aiDifficultyChanged();              // AI难度改变
 
 private:
     void rebuildPiecesList();  // 从 Position 重建棋子列表
     void checkGameStatus();     // 检查游戏状态
     void updateValidMoves();    // 更新可走位置
+    void triggerAIMove();       // 触发AI走棋
+    void executeAIMove();       // 执行AI走棋（在定时器中调用）
 
     Position m_position;              // 核心局面对象
     QList<ChessPiece> m_piecesList;   // 用于 QML 显示的棋子列表
@@ -112,6 +130,10 @@ private:
     QString m_gameStatus;             // 游戏状态文本
     QList<QPoint> m_validMovePositions; // 当前棋子的可走位置列表
     GameController m_gameController;   // 游戏控制器
+    ChessAI m_ai;                      // AI引擎
+    bool m_aiEnabled;                  // AI是否启用
+    bool m_aiThinking;                 // AI是否正在思考
+    QTimer *m_aiTimer;                 // AI延迟定时器（避免AI瞬间走棋）
 };
 
 #endif // CHESSBOARDMODEL_H

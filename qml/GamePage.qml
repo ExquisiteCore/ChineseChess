@@ -55,6 +55,41 @@ Rectangle {
                 Layout.alignment: Qt.AlignVCenter
             }
 
+            // AI思考指示器
+            Rectangle {
+                visible: chessBoardModel.aiThinking
+                Layout.preferredWidth: 100
+                Layout.preferredHeight: 30
+                color: "#ff9800"
+                radius: 5
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: 5
+
+                    Text {
+                        text: "AI思考中"
+                        font.pixelSize: 12
+                        color: "white"
+                    }
+
+                    // 简单的动画指示器
+                    Rectangle {
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: "white"
+
+                        SequentialAnimation on opacity {
+                            running: chessBoardModel.aiThinking
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 1.0; to: 0.3; duration: 500 }
+                            NumberAnimation { from: 0.3; to: 1.0; duration: 500 }
+                        }
+                    }
+                }
+            }
+
             Item { Layout.fillWidth: true }
 
             Button {
@@ -208,6 +243,101 @@ Rectangle {
                     text: "步数: " + chessBoardModel.moveCount
                     font.pixelSize: 14
                     color: "#654321"
+                }
+
+                // AI控制区域
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 120
+                    color: "#fff8dc"
+                    radius: 5
+                    border.color: "#8b4513"
+                    border.width: 1
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 8
+
+                        // AI启用开关
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            Text {
+                                text: "AI对手:"
+                                font.pixelSize: 14
+                                font.bold: true
+                                color: "#654321"
+                            }
+
+                            Switch {
+                                id: aiSwitch
+                                checked: chessBoardModel.aiEnabled
+                                onCheckedChanged: {
+                                    chessBoardModel.aiEnabled = checked
+                                }
+                            }
+
+                            Text {
+                                text: chessBoardModel.aiEnabled ? "已启用" : "已禁用"
+                                font.pixelSize: 12
+                                color: chessBoardModel.aiEnabled ? "#4caf50" : "#999999"
+                            }
+                        }
+
+                        // AI难度选择
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+                            enabled: chessBoardModel.aiEnabled
+
+                            Text {
+                                text: "难度:"
+                                font.pixelSize: 13
+                                color: "#654321"
+                            }
+
+                            ComboBox {
+                                id: difficultyCombo
+                                Layout.fillWidth: true
+                                model: ["简单", "中等", "困难", "专家"]
+                                currentIndex: chessBoardModel.aiDifficulty - 1
+
+                                onCurrentIndexChanged: {
+                                    chessBoardModel.aiDifficulty = currentIndex + 1
+                                }
+
+                                delegate: ItemDelegate {
+                                    width: difficultyCombo.width
+                                    contentItem: Text {
+                                        text: modelData
+                                        color: "#654321"
+                                        font.pixelSize: 12
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                    highlighted: difficultyCombo.highlightedIndex === index
+                                }
+
+                                contentItem: Text {
+                                    leftPadding: 10
+                                    text: difficultyCombo.displayText
+                                    font.pixelSize: 12
+                                    color: "#654321"
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                background: Rectangle {
+                                    implicitWidth: 120
+                                    implicitHeight: 30
+                                    border.color: "#8b4513"
+                                    border.width: 1
+                                    radius: 3
+                                    color: parent.pressed ? "#e0e0e0" : "#ffffff"
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // 走子历史标题

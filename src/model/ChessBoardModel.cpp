@@ -6,15 +6,26 @@ ChessBoardModel::ChessBoardModel(QObject *parent)
     , m_liftedPieceIndex(-1)
     , m_gameStatus("进行中")
     , m_gameController(this)
+    , m_ai(this)
+    , m_aiEnabled(false)
+    , m_aiThinking(false)
 {
     // 初始化为开局局面
     m_position.board().initializeStartPosition();
     rebuildPiecesList();
 
+    // 创建AI定时器
+    m_aiTimer = new QTimer(this);
+    m_aiTimer->setSingleShot(true);
+    connect(m_aiTimer, &QTimer::timeout, this, &ChessBoardModel::executeAIMove);
+
     // 连接游戏控制器信号
     connect(&m_gameController, &GameController::undoAvailableChanged, this, &ChessBoardModel::canUndoChanged);
     connect(&m_gameController, &GameController::redoAvailableChanged, this, &ChessBoardModel::canRedoChanged);
     connect(&m_gameController, &GameController::moveHistoryChanged, this, &ChessBoardModel::moveCountChanged);
+
+    // 设置AI默认难度
+    m_ai.setDifficulty(AIDifficulty::Medium);
 
     // 开始新游戏（传入当前局面的FEN）
     m_gameController.startNewGame(m_position.toFen());
@@ -245,6 +256,12 @@ bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
     checkGameStatus();
 
     qDebug() << "移动成功: " << fromRow << fromCol << "->" << toRow << toCol;
+
+    // 如果AI启用且切换到黑方回合，触发AI走棋
+    if (m_aiEnabled && !isRedTurn()) {
+        triggerAIMove();
+    }
+
     return true;
 }
 
@@ -569,4 +586,115 @@ void ChessBoardModel::resign()
     qDebug() << "游戏结束:" << m_gameStatus;
     emit gameOver(m_gameStatus);
     emit gameStatusChanged();
+}
+
+void ChessBoardModel::setAiEnabled(bool enabled)
+{
+    if (m_aiEnabled != enabled) {
+        m_aiEnabled = enabled;
+        emit aiEnabledChanged();
+
+        qDebug() << "AI对手" << (enabled ? "启用" : "禁用");
+
+        // 如果启用AI且当前是黑方回合，触发AI走棋
+        if (enabled && !isRedTurn() && !m_aiThinking) {
+            triggerAIMove();
+        }
+    }
+}
+
+void ChessBoardModel::setAiDifficulty(int difficulty)
+{
+    AIDifficulty aiDiff = static_cast<AIDifficulty>(difficulty);
+    m_ai.setDifficulty(aiDiff);
+    emit aiDifficultyChanged();
+    qDebug() << "AI难度设置为:" << difficulty;
+}
+
+void ChessBoardModel::triggerAIMove()
+{
+    if (!m_aiEnabled || m_aiThinking) {
+        return;
+    }
+
+    // 检查游戏是否结束
+    if (m_gameStatus.contains("胜") || m_gameStatus.contains("和棋")) {
+        return;
+    }
+
+    // 检查是否是AI的回合（黑方）
+    if (isRedTurn()) {
+        return;  // AI是黑方，红方回合不走棋
+    }
+
+    qDebug() << "触发AI走棋...";
+
+    // 延迟500ms再走棋，让用户能看清楚红方的走法
+    m_aiTimer->start(500);
+}
+
+void ChessBoardModel::executeAIMove()
+{
+    if (m_aiThinking) {
+        qDebug() << "AI正在思考，忽略重复请求";
+        return;
+    }
+
+    m_aiThinking = true;
+    emit aiThinkingChanged();
+
+    qDebug() << "AI开始思考...";
+
+    // 获取最佳移动
+    AIMove bestMove = m_ai.getBestMove(m_position);
+
+    m_aiThinking = false;
+    emit aiThinkingChanged();
+
+    if (!bestMove.isValid()) {
+        qDebug() << "AI无法找到有效移动";
+        return;
+    }
+
+    qDebug() << "AI选择移动:" << bestMove.fromRow << bestMove.fromCol
+             << "->" << bestMove.toRow << bestMove.toCol;
+
+    // 执行AI的移动
+    int fromRow = bestMove.fromRow;
+    int fromCol = bestMove.fromCol;
+    int toRow = bestMove.toRow;
+    int toCol = bestMove.toCol;
+
+    // 记录移动棋子和目标位置的棋子
+    const ChessPiece *movedPiece = m_position.board().pieceAt(fromRow, fromCol);
+    const ChessPiece *targetPiece = m_position.board().pieceAt(toRow, toCol);
+    QString capturedPiece = targetPiece ? targetPiece->chineseName() : "";
+
+    // 执行移动
+    m_position.board().movePiece(fromRow, fromCol, toRow, toCol);
+
+    // 切换回合
+    m_position.switchTurn();
+    m_position.incrementFullMoveNumber();
+
+    // 记录走棋历史
+    if (movedPiece) {
+        m_gameController.recordMove(m_position, *movedPiece, fromRow, fromCol, toRow, toCol, capturedPiece);
+    }
+
+    // 重建模型
+    beginResetModel();
+    rebuildPiecesList();
+    setLiftedPieceIndex(-1);
+    endResetModel();
+
+    emit isRedTurnChanged();
+    emit fenStringChanged();
+    emit boardChanged();
+    emit moveHistoryChanged();
+
+    // 检查游戏状态
+    checkGameStatus();
+
+    qDebug() << "AI走棋完成";
 }

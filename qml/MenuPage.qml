@@ -11,16 +11,6 @@ Rectangle {
     signal showSettings()
     signal exitGame()
 
-    // 背景装饰
-    Image {
-        anchors.fill: parent
-        source: "qrc:/images/menu_bg.png"
-        fillMode: Image.PreserveAspectCrop
-        opacity: 0.3
-        // 如果没有图片，使用渐变背景
-        visible: false
-    }
-
     // 渐变背景
     Rectangle {
         anchors.fill: parent

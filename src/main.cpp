@@ -63,6 +63,9 @@ int main(int argc, char *argv[])
     SetConsoleCP(CP_UTF8);
 #endif
 
+    // 设置Qt Quick Controls样式为Basic，避免样式自定义警告
+    qputenv("QT_QUICK_CONTROLS_STYLE", "Basic");
+
     // 安装消息处理器，将qDebug输出到文件
     qInstallMessageHandler(messageHandler);
 

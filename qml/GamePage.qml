@@ -302,10 +302,15 @@ Rectangle {
                                 id: difficultyCombo
                                 Layout.fillWidth: true
                                 model: ["简单", "中等", "困难", "专家"]
-                                currentIndex: chessBoardModel.aiDifficulty - 1
 
-                                onCurrentIndexChanged: {
-                                    chessBoardModel.aiDifficulty = currentIndex + 1
+                                // 使用Component.onCompleted设置初始值，避免绑定循环
+                                Component.onCompleted: {
+                                    currentIndex = chessBoardModel.aiDifficulty - 1
+                                }
+
+                                // 使用onActivated只在用户手动选择时触发
+                                onActivated: function(index) {
+                                    chessBoardModel.aiDifficulty = index + 1
                                 }
 
                                 delegate: ItemDelegate {

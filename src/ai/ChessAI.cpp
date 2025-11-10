@@ -6,7 +6,7 @@
 ChessAI::ChessAI(QObject *parent)
     : QObject(parent)
     , m_difficulty(AIDifficulty::Medium)
-    , m_maxDepth(4)
+    , m_maxDepth(3)
     , m_nodesSearched(0)
     , m_pruneCount(0)
     , m_ttHits(0)
@@ -27,7 +27,7 @@ ChessAI::ChessAI(QObject *parent)
 void ChessAI::setDifficulty(AIDifficulty difficulty)
 {
     m_difficulty = difficulty;
-    m_maxDepth = static_cast<int>(difficulty) + 2;  // Easy=3, Medium=4, Hard=5, Expert=6
+    m_maxDepth = static_cast<int>(difficulty) + 1;  // Easy=2, Medium=3, Hard=4, Expert=5
     qDebug() << "AI难度设置为:" << m_maxDepth << "层搜索";
 }
 
@@ -342,10 +342,15 @@ int ChessAI::minimax(Position &position, int depth, int alpha, int beta, bool is
     return pvs(position, depth, alpha, beta, isMaximizing, true);
 }
 
-// 静态搜索（解决水平线效应）
-int ChessAI::quiescence(Position &position, int alpha, int beta, bool isMaximizing)
+// 静态搜索（解决水平线效应）- 添加深度限制
+int ChessAI::quiescence(Position &position, int alpha, int beta, bool isMaximizing, int qsDepth)
 {
     m_qsNodes++;
+
+    // 限制静态搜索深度，避免爆炸
+    if (qsDepth >= 4) {
+        return evaluatePositionFast(position);
+    }
 
     // 站立评估
     int standPat = evaluatePositionFast(position);
@@ -366,28 +371,64 @@ int ChessAI::quiescence(Position &position, int alpha, int beta, bool isMaximizi
         return standPat;
     }
 
+    // Delta剪枝：如果吃最大的子也无法提升alpha，直接返回
+    if (!captureMoves.isEmpty()) {
+        int biggestCapture = 0;
+        for (const AIMove &move : captureMoves) {
+            const ChessPiece *target = position.board().pieceAt(move.toRow, move.toCol);
+            if (target && target->isValid()) {
+                biggestCapture = std::max(biggestCapture, getPieceBaseValue(target->type()));
+            }
+        }
+
+        const int DELTA_MARGIN = 200;  // 安全边界
+        if (isMaximizing && standPat + biggestCapture + DELTA_MARGIN < alpha) {
+            return alpha;
+        }
+        if (!isMaximizing && standPat - biggestCapture - DELTA_MARGIN > beta) {
+            return beta;
+        }
+    }
+
+    // 只检查高价值吃子（剪枝弱吃子）
+    QList<AIMove> goodCaptures;
+    for (const AIMove &move : captureMoves) {
+        const ChessPiece *target = position.board().pieceAt(move.toRow, move.toCol);
+        const ChessPiece *attacker = position.board().pieceAt(move.fromRow, move.fromCol);
+        if (target && target->isValid() && attacker && attacker->isValid()) {
+            // SEE (Static Exchange Evaluation) 简化版：只吃价值>=攻击子的目标
+            if (getPieceBaseValue(target->type()) >= getPieceBaseValue(attacker->type()) - 100) {
+                goodCaptures.append(move);
+            }
+        }
+    }
+
+    if (goodCaptures.isEmpty()) {
+        return standPat;
+    }
+
     // 对吃子移动排序
-    sortMoves(captureMoves, position);
+    sortMoves(goodCaptures, position);
 
     if (isMaximizing) {
-        for (const AIMove &move : captureMoves) {
+        for (const AIMove &move : goodCaptures) {
             Position tempPos = position;
             tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
             tempPos.switchTurn();
 
-            int score = quiescence(tempPos, alpha, beta, false);
+            int score = quiescence(tempPos, alpha, beta, false, qsDepth + 1);
 
             if (score >= beta) return beta;
             if (score > alpha) alpha = score;
         }
         return alpha;
     } else {
-        for (const AIMove &move : captureMoves) {
+        for (const AIMove &move : goodCaptures) {
             Position tempPos = position;
             tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
             tempPos.switchTurn();
 
-            int score = quiescence(tempPos, alpha, beta, true);
+            int score = quiescence(tempPos, alpha, beta, true, qsDepth + 1);
 
             if (score <= alpha) return alpha;
             if (score < beta) beta = score;
@@ -692,27 +733,11 @@ void ChessAI::storeTranspositionTable(quint64 key, int depth, int score, TTEntry
         return;
     }
 
-    // 如果表满了，需要替换
+    // 如果表满了，使用简单的替换策略
     if (m_transpositionTable.size() >= TT_SIZE) {
-        // 查找深度最浅的项进行替换
-        quint64 worstKey = 0;
-        int minDepth = INF;
-
-        // 简化策略：只检查前100个项（避免遍历整个表）
-        int checked = 0;
-        for (auto it = m_transpositionTable.begin(); it != m_transpositionTable.end() && checked < 100; ++it, ++checked) {
-            if (it.value().depth < minDepth) {
-                minDepth = it.value().depth;
-                worstKey = it.key();
-            }
-        }
-
-        // 如果新项深度更深，则替换最浅项
-        if (depth > minDepth) {
-            m_transpositionTable.remove(worstKey);
-        } else {
-            return;  // 不存储浅度结果
-        }
+        // 直接删除第一个元素（FIFO策略，简单高效）
+        auto it = m_transpositionTable.begin();
+        m_transpositionTable.erase(it);
     }
 
     // 存储新项

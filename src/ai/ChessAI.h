@@ -13,10 +13,10 @@
 
 // AI难度级别
 enum class AIDifficulty {
-    Easy = 1,      // 搜索深度 3
-    Medium = 2,    // 搜索深度 4
-    Hard = 3,      // 搜索深度 5
-    Expert = 4     // 搜索深度 6
+    Easy = 1,      // 搜索深度 2
+    Medium = 2,    // 搜索深度 3
+    Hard = 3,      // 搜索深度 4
+    Expert = 4     // 搜索深度 5
 };
 
 // 移动结构（包含评分）
@@ -80,7 +80,7 @@ private:
     int nullMoveSearch(Position &position, int depth, int beta, bool isMaximizing);
 
     // 静态搜索（解决水平线效应）
-    int quiescence(Position &position, int alpha, int beta, bool isMaximizing);
+    int quiescence(Position &position, int alpha, int beta, bool isMaximizing, int qsDepth = 0);
 
     // 获取所有可能的移动
     QList<AIMove> generateAllMoves(const Position &position, PieceColor color);

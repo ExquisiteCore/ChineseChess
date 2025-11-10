@@ -237,6 +237,21 @@ Rectangle {
             x: gridToX(model.col) - width / 2
             y: gridToY(model.row) - height / 2
 
+            // 添加位置移动动画
+            Behavior on x {
+                NumberAnimation {
+                    duration: 400
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            Behavior on y {
+                NumberAnimation {
+                    duration: 400
+                    easing.type: Easing.OutCubic
+                }
+            }
+
             onClicked: {
                 // 调用 C++ 的选择逻辑
                 console.log("ChessBoard: 棋子点击事件接收, index:", index)

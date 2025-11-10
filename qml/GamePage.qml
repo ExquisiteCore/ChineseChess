@@ -6,7 +6,28 @@ Rectangle {
     id: gamePage
     color: "#f5e6d3"
 
+    property string gameMode: "single"  // "single" 或 "two"
+
     signal backToMenu()
+
+    // 组件创建完成后设置游戏模式
+    Component.onCompleted: {
+        console.log("GamePage loaded with gameMode:", gameMode)
+
+        // 重置游戏为初始状态
+        chessBoardModel.startNewGame()
+
+        // 设置游戏模式
+        chessBoardModel.isTwoPlayerMode = (gameMode === "two")
+        console.log("isTwoPlayerMode set to:", chessBoardModel.isTwoPlayerMode)
+
+        if (gameMode === "single") {
+            chessBoardModel.aiEnabled = true
+            console.log("AI enabled for single player mode")
+        } else {
+            console.log("Two player mode - AI disabled")
+        }
+    }
 
     // 顶部工具栏
     Rectangle {
@@ -248,84 +269,6 @@ Rectangle {
                     text: "步数: " + chessBoardModel.moveCount
                     font.pixelSize: 14
                     color: "#654321"
-                }
-
-                // 游戏模式选择
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 60
-                    color: "#f0e68c"
-                    radius: 5
-                    border.color: "#8b4513"
-                    border.width: 1
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 5
-
-                        Text {
-                            text: "游戏模式"
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: "#654321"
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-
-                            Button {
-                                text: "人机对战"
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 25
-                                checked: !chessBoardModel.isTwoPlayerMode
-                                checkable: false
-
-                                contentItem: Text {
-                                    text: parent.text
-                                    font.pixelSize: 11
-                                    color: "white"
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                background: Rectangle {
-                                    color: !chessBoardModel.isTwoPlayerMode ? "#4caf50" : "#999999"
-                                    radius: 3
-                                }
-
-                                onClicked: {
-                                    chessBoardModel.isTwoPlayerMode = false
-                                }
-                            }
-
-                            Button {
-                                text: "双人对战"
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 25
-                                checked: chessBoardModel.isTwoPlayerMode
-                                checkable: false
-
-                                contentItem: Text {
-                                    text: parent.text
-                                    font.pixelSize: 11
-                                    color: "white"
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                background: Rectangle {
-                                    color: chessBoardModel.isTwoPlayerMode ? "#2196f3" : "#999999"
-                                    radius: 3
-                                }
-
-                                onClicked: {
-                                    chessBoardModel.isTwoPlayerMode = true
-                                }
-                            }
-                        }
-                    }
                 }
 
                 // AI控制区域（仅在人机对战模式显示）

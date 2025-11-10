@@ -288,6 +288,17 @@ Rectangle {
             x: gridToX(modelData.x) - width / 2
             y: gridToY(modelData.y) - height / 2
 
+            // 跟随棋盘旋转
+            rotation: chessBoardModel.boardRotation
+
+            // 旋转动画
+            Behavior on rotation {
+                NumberAnimation {
+                    duration: 600
+                    easing.type: Easing.InOutQuad
+                }
+            }
+
             // 呼吸动画
             SequentialAnimation on opacity {
                 running: true

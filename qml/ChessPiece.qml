@@ -18,6 +18,17 @@ Item {
     // 悬浮时提高层级，确保在其他棋子上方
     z: lifted ? 100 : 0
 
+    // 跟随棋盘旋转（保持棋子正向）
+    rotation: chessBoardModel.boardRotation
+
+    // 旋转动画
+    Behavior on rotation {
+        NumberAnimation {
+            duration: 600
+            easing.type: Easing.InOutQuad
+        }
+    }
+
     // 棋子圆盘
     Rectangle {
         id: pieceCircle

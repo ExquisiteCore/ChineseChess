@@ -429,6 +429,10 @@ void ChessBoardModel::startNewGame()
     // 重置游戏控制器（传入当前局面的FEN）
     m_gameController.startNewGame(m_position.toFen());
 
+    // 重置棋盘旋转角度
+    m_boardRotation = 0;
+    emit boardRotationChanged();
+
     qDebug() << "开始新游戏";
 }
 

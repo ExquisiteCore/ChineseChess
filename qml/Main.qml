@@ -15,14 +15,20 @@ Window {
         initialItem: menuPage
     }
 
+    property string currentGameMode: "single"  // 保存当前游戏模式
+
     Component {
         id: menuPage
         MenuPage {
             onStartSinglePlayer: {
-                stackView.push(gamePageComponent, { "gameMode": "single" })
+                console.log("Starting single player mode")
+                currentGameMode = "single"
+                stackView.push(gamePageComponent)
             }
             onStartTwoPlayer: {
-                stackView.push(gamePageComponent, { "gameMode": "two" })
+                console.log("Starting two player mode")
+                currentGameMode = "two"
+                stackView.push(gamePageComponent)
             }
             onShowSettings: {
                 // 后续实现设置页面
@@ -37,7 +43,8 @@ Window {
     Component {
         id: gamePageComponent
         GamePage {
-            property string gameMode: "two"
+            // 从Window的属性读取游戏模式
+            gameMode: currentGameMode
 
             onBackToMenu: {
                 stackView.pop()

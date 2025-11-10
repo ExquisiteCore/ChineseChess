@@ -17,8 +17,9 @@ void messageHandler(QtMsgType type, const QMessageLogContext &context, const QSt
     static bool opened = false;
 
     if (!opened) {
-        logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text);
-        opened = true;
+        if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            opened = true;
+        }
     }
 
     QTextStream out(&logFile);

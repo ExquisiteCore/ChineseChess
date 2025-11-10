@@ -430,6 +430,14 @@ Rectangle {
         visible: false
         z: 100
 
+        // 当对话框显示时，更新FEN字符串
+        onVisibleChanged: {
+            if (visible) {
+                saveTextEdit.text = chessBoardModel.saveGame()
+                saveTextEdit.selectAll()  // 自动全选，方便复制
+            }
+        }
+
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 20
@@ -461,7 +469,6 @@ Rectangle {
                     id: saveTextEdit
                     anchors.fill: parent
                     anchors.margins: 10
-                    text: chessBoardModel.saveGame()
                     font.pixelSize: 14
                     color: "#654321"
                     wrapMode: TextEdit.Wrap
@@ -507,13 +514,22 @@ Rectangle {
         id: loadDialog
         anchors.centerIn: parent
         width: 500
-        height: 300
+        height: 350
         color: "#f5f5f5"
         radius: 10
         border.color: "#8b4513"
         border.width: 3
         visible: false
         z: 100
+
+        // 当对话框显示时，清空文本并聚焦
+        onVisibleChanged: {
+            if (visible) {
+                loadTextEdit.text = ""
+                loadTextEdit.forceActiveFocus()
+                loadErrorText.visible = false
+            }
+        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -550,8 +566,18 @@ Rectangle {
                     color: "#654321"
                     wrapMode: TextEdit.Wrap
                     selectByMouse: true
-                    focus: true
                 }
+            }
+
+            // 错误提示
+            Text {
+                id: loadErrorText
+                text: "FEN 字符串格式错误，请检查后重试"
+                font.pixelSize: 14
+                color: "#ff0000"
+                visible: false
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
             }
 
             RowLayout {
@@ -609,8 +635,10 @@ Rectangle {
                             console.log("局面加载成功")
                             loadDialog.visible = false
                             loadTextEdit.text = ""
+                            loadErrorText.visible = false
                         } else {
                             console.log("局面加载失败")
+                            loadErrorText.visible = true
                         }
                     }
                 }

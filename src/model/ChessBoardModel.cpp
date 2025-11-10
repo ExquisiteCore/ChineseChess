@@ -313,6 +313,9 @@ bool ChessBoardModel::loadFromFen(const QString &fen)
     emit boardChanged();
     emit moveHistoryChanged();  // 通知历史记录已重置
 
+    // 检查加载后的游戏状态
+    checkGameStatus();
+
     qDebug() << "成功加载 FEN:" << fen;
     return true;
 }

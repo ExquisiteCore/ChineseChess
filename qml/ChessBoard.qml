@@ -5,6 +5,17 @@ Rectangle {
     id: chessBoard
     color: "#f5deb3"
 
+    // 棋盘旋转（绑定到C++模型）
+    rotation: chessBoardModel.boardRotation
+
+    // 旋转动画
+    Behavior on rotation {
+        NumberAnimation {
+            duration: 600
+            easing.type: Easing.InOutQuad
+        }
+    }
+
     // 棋盘参数
     property int rows: 10        // 横线数量
     property int cols: 9         // 竖线数量

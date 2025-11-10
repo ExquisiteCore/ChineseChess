@@ -27,6 +27,8 @@ class ChessBoardModel : public QAbstractListModel
     Q_PROPERTY(bool aiEnabled READ aiEnabled WRITE setAiEnabled NOTIFY aiEnabledChanged)
     Q_PROPERTY(bool aiThinking READ aiThinking NOTIFY aiThinkingChanged)
     Q_PROPERTY(int aiDifficulty READ aiDifficulty WRITE setAiDifficulty NOTIFY aiDifficultyChanged)
+    Q_PROPERTY(bool isTwoPlayerMode READ isTwoPlayerMode WRITE setIsTwoPlayerMode NOTIFY isTwoPlayerModeChanged)
+    Q_PROPERTY(int boardRotation READ boardRotation NOTIFY boardRotationChanged)
 
 public:
     enum ChessPieceRoles {
@@ -68,6 +70,11 @@ public:
 
     int aiDifficulty() const { return static_cast<int>(m_ai.getDifficulty()); }
     void setAiDifficulty(int difficulty);
+
+    bool isTwoPlayerMode() const { return m_isTwoPlayerMode; }
+    void setIsTwoPlayerMode(bool enabled);
+
+    int boardRotation() const { return m_boardRotation; }
 
     // 获取 Position 对象
     Position& position() { return m_position; }
@@ -111,6 +118,8 @@ signals:
     void aiEnabledChanged();                 // AI启用状态改变
     void aiThinkingChanged();                // AI思考状态改变
     void aiDifficultyChanged();              // AI难度改变
+    void isTwoPlayerModeChanged();           // 双人模式状态改变
+    void boardRotationChanged();             // 棋盘旋转角度改变
 
 private:
     void rebuildPiecesList();  // 从 Position 重建棋子列表
@@ -123,6 +132,7 @@ private:
     // 辅助方法
     bool canSelectPiece(int index) const;  // 检查是否可以选择棋子
     void resetBoardState();     // 重置棋盘状态的通用方法
+    void rotateBoardIfNeeded(); // 双人模式下旋转棋盘
     void updateModelAfterMove(int fromRow, int fromCol, int toRow, int toCol,
                               const ChessPiece *movedPiece, const ChessPiece *targetPiece);
 
@@ -135,6 +145,8 @@ private:
     ChessAI m_ai;                      // AI引擎
     bool m_aiEnabled;                  // AI是否启用
     bool m_aiThinking;                 // AI是否正在思考
+    bool m_isTwoPlayerMode;            // 是否为双人对战模式
+    int m_boardRotation;               // 棋盘旋转角度（0或180）
     QTimer *m_aiTimer;                 // AI延迟定时器（避免AI瞬间走棋）
     QFutureWatcher<AIMove> *m_aiWatcher; // AI异步任务监视器
 };

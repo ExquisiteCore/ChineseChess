@@ -10,6 +10,8 @@ ChessBoardModel::ChessBoardModel(QObject *parent)
     , m_ai(this)
     , m_aiEnabled(false)
     , m_aiThinking(false)
+    , m_isTwoPlayerMode(false)
+    , m_boardRotation(0)
 {
     // 初始化为开局局面
     m_position.board().initializeStartPosition();
@@ -511,6 +513,37 @@ void ChessBoardModel::setAiDifficulty(int difficulty)
     qDebug() << "AI难度设置为:" << difficulty;
 }
 
+void ChessBoardModel::setIsTwoPlayerMode(bool enabled)
+{
+    if (m_isTwoPlayerMode != enabled) {
+        m_isTwoPlayerMode = enabled;
+        emit isTwoPlayerModeChanged();
+
+        qDebug() << "游戏模式:" << (enabled ? "双人对战" : "人机对战");
+
+        // 双人模式时自动禁用AI
+        if (enabled && m_aiEnabled) {
+            setAiEnabled(false);
+        }
+
+        // 重置棋盘旋转
+        if (!enabled) {
+            m_boardRotation = 0;
+            emit boardRotationChanged();
+        }
+    }
+}
+
+void ChessBoardModel::rotateBoardIfNeeded()
+{
+    // 只在双人模式下旋转棋盘
+    if (m_isTwoPlayerMode) {
+        m_boardRotation = (m_boardRotation == 0) ? 180 : 0;
+        emit boardRotationChanged();
+        qDebug() << "棋盘旋转至:" << m_boardRotation << "度";
+    }
+}
+
 void ChessBoardModel::triggerAIMove()
 {
     if (!m_aiEnabled || m_aiThinking) {
@@ -651,4 +684,7 @@ void ChessBoardModel::updateModelAfterMove(int fromRow, int fromCol, int toRow, 
     emit fenStringChanged();
     emit boardChanged();
     emit moveHistoryChanged();
+
+    // 双人模式下旋转棋盘
+    rotateBoardIfNeeded();
 }

@@ -6,6 +6,16 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Windows下设置UTF-8编码
+if(WIN32)
+    if(MSVC)
+        add_compile_options(/utf-8)
+    else()
+        # MinGW/GCC
+        add_compile_options(-finput-charset=UTF-8 -fexec-charset=UTF-8)
+    endif()
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Quick)
 
 qt_standard_project_setup(REQUIRES 6.8)
@@ -23,6 +33,9 @@ qt_add_executable(appChineseChess
     src/core/ChessRules.cpp
     src/core/GameController.h
     src/core/GameController.cpp
+    # AI引擎
+    src/ai/ChessAI.h
+    src/ai/ChessAI.cpp
     # QML 适配层
     src/model/ChessBoardModel.h
     src/model/ChessBoardModel.cpp

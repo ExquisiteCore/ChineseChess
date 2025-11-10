@@ -5,6 +5,7 @@
 #include <QString>
 #include <QPoint>
 #include <QTimer>
+#include <QFutureWatcher>
 #include "../core/Position.h"
 #include "../core/ChessRules.h"
 #include "../core/GameController.h"
@@ -123,6 +124,7 @@ private:
     void updateValidMoves();    // 更新可走位置
     void triggerAIMove();       // 触发AI走棋
     void executeAIMove();       // 执行AI走棋（在定时器中调用）
+    void onAIFinished();        // AI思考完成的槽函数
 
     Position m_position;              // 核心局面对象
     QList<ChessPiece> m_piecesList;   // 用于 QML 显示的棋子列表
@@ -134,6 +136,7 @@ private:
     bool m_aiEnabled;                  // AI是否启用
     bool m_aiThinking;                 // AI是否正在思考
     QTimer *m_aiTimer;                 // AI延迟定时器（避免AI瞬间走棋）
+    QFutureWatcher<AIMove> *m_aiWatcher; // AI异步任务监视器
 };
 
 #endif // CHESSBOARDMODEL_H

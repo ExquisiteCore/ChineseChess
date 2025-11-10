@@ -1,5 +1,6 @@
 #include "ChessBoardModel.h"
 #include <QDebug>
+#include <QtConcurrent/QtConcurrent>
 
 ChessBoardModel::ChessBoardModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -18,6 +19,10 @@ ChessBoardModel::ChessBoardModel(QObject *parent)
     m_aiTimer = new QTimer(this);
     m_aiTimer->setSingleShot(true);
     connect(m_aiTimer, &QTimer::timeout, this, &ChessBoardModel::executeAIMove);
+
+    // 创建AI任务监视器
+    m_aiWatcher = new QFutureWatcher<AIMove>(this);
+    connect(m_aiWatcher, &QFutureWatcher<AIMove>::finished, this, &ChessBoardModel::onAIFinished);
 
     // 连接游戏控制器信号
     connect(&m_gameController, &GameController::undoAvailableChanged, this, &ChessBoardModel::canUndoChanged);
@@ -111,6 +116,12 @@ bool ChessBoardModel::canSelectPiece(int index) const
 
 void ChessBoardModel::selectPiece(int index)
 {
+    // 如果AI正在思考，禁止用户操作
+    if (m_aiThinking) {
+        qDebug() << "AI正在思考，请等待...";
+        return;
+    }
+
     const ChessPiece &piece = m_piecesList[index];
 
     // 如果已经有悬浮的棋子，尝试走棋（可能是吃子）
@@ -203,6 +214,12 @@ bool ChessBoardModel::movePiece(int fromIndex, int toIndex)
 
 bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
 {
+    // 如果AI正在思考，禁止用户操作
+    if (m_aiThinking) {
+        qDebug() << "AI正在思考，请等待...";
+        return false;
+    }
+
     if (fromIndex < 0 || fromIndex >= m_piecesList.count())
         return false;
     if (!Board::isValidPosition(toRow, toCol))
@@ -672,8 +689,18 @@ void ChessBoardModel::executeAIMove()
 
     qDebug() << "AI开始思考...";
 
-    // 获取最佳移动
-    AIMove bestMove = m_ai.getBestMove(m_position);
+    // 在后台线程中执行AI思考
+    QFuture<AIMove> future = QtConcurrent::run([this]() {
+        return m_ai.getBestMove(m_position);
+    });
+
+    m_aiWatcher->setFuture(future);
+}
+
+void ChessBoardModel::onAIFinished()
+{
+    // 获取AI思考结果
+    AIMove bestMove = m_aiWatcher->result();
 
     m_aiThinking = false;
     emit aiThinkingChanged();

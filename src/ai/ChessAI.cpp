@@ -68,7 +68,7 @@ AIMove ChessAI::getBestMove(const Position &position)
     // 1. 先尝试查询开局库
     if (m_openingBook && m_openingBook->isEnabled()) {
         quint64 posKey = m_transpositionTable->computeZobristKey(searchPos);
-        AIMove bookMove = m_openingBook->selectMove(searchPos, posKey);
+        AIMove bookMove = m_openingBook->selectMove(posKey);
         if (bookMove.isValid()) {
             qDebug() << "使用开局库走法";
             emit moveFound(bookMove.fromRow, bookMove.fromCol, bookMove.toRow, bookMove.toCol, 0);

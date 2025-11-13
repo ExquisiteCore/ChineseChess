@@ -8,16 +8,6 @@ EndgameTablebase::EndgameTablebase()
     qDebug() << "残局库初始化完成";
 }
 
-EndgameEntry EndgameTablebase::probe(const Position &position)
-{
-    if (!m_enabled || !isEndgame(position)) {
-        return EndgameEntry();
-    }
-
-    // 首先尝试识别特殊残局
-    return recognizeSpecialEndgame(position);
-}
-
 bool EndgameTablebase::isEndgame(const Position &position) const
 {
     // 判断是否进入残局阶段

@@ -10,24 +10,20 @@ OpeningBook::OpeningBook(TranspositionTable *tt)
     initializeCommonOpenings();
 }
 
-QList<BookEntry> OpeningBook::probe(const Position &position, quint64 zobristKey)
+AIMove OpeningBook::selectMove(quint64 zobristKey)
 {
     if (!m_enabled) {
-        return QList<BookEntry>();
+        return AIMove();
     }
 
-    if (m_book.contains(zobristKey)) {
-        return m_book[zobristKey];
-    }
-
-    return QList<BookEntry>();
-}
-
-AIMove OpeningBook::selectMove(const Position &position, quint64 zobristKey)
-{
-    QList<BookEntry> entries = probe(position, zobristKey);
-    if (entries.isEmpty()) {
+    // 查询开局库
+    if (!m_book.contains(zobristKey)) {
         return AIMove(); // 不在开局库中
+    }
+
+    QList<BookEntry> entries = m_book[zobristKey];
+    if (entries.isEmpty()) {
+        return AIMove();
     }
 
     // 计算总权重
@@ -156,17 +152,7 @@ void OpeningBook::initializeCommonOpenings()
     addSymmetricMoves(centerCannonVsScreen, AIMove(0, 0, 0, 1), 85, 51);   // 车一平二
 
     qDebug() << "开局库初始化完成："
-             << getTotalPositions() << "个局面，"
-             << getTotalMoves() << "个走法";
-}
-
-int OpeningBook::getTotalMoves() const
-{
-    int total = 0;
-    for (const QList<BookEntry> &entries : m_book) {
-        total += entries.size();
-    }
-    return total;
+             << m_book.size() << "个局面";
 }
 
 void OpeningBook::addSymmetricMoves(const Position &pos, const AIMove &move, int weight, int winRate)

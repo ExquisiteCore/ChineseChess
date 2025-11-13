@@ -76,6 +76,15 @@ private:
     // 线程安全锁
     mutable QMutex m_mutex;
 
+    // 辅助函数：实际的查询逻辑（无锁版本）
+    bool probeImpl(quint64 key, int depth, int alpha, int beta, int &score);
+
+    // 辅助函数：实际的存储逻辑（无锁版本）
+    void storeImpl(quint64 key, int depth, int score, TTEntry::Flag flag, const AIMove &bestMove);
+
+    // 辅助函数：实际的获取最佳移动逻辑（无锁版本）
+    std::optional<AIMove> getBestMoveImpl(quint64 key);
+
     static constexpr int TT_SIZE = 1000000;  // 约100万个表项
 };
 

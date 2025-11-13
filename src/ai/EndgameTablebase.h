@@ -5,7 +5,6 @@
 #include "../core/Position.h"
 #include "../core/Board.h"
 #include <QHash>
-#include <QPair>
 
 // 残局结果
 enum class EndgameResult {
@@ -34,9 +33,6 @@ class EndgameTablebase
 public:
     EndgameTablebase();
 
-    // 查询残局库
-    EndgameEntry probe(const Position &position);
-
     // 判断是否是残局
     bool isEndgame(const Position &position) const;
 
@@ -46,9 +42,6 @@ public:
     // 是否启用
     bool isEnabled() const { return m_enabled; }
     void setEnabled(bool enabled) { m_enabled = enabled; }
-
-    // 统计信息
-    int getCacheSize() const { return m_cache.size(); }
 
 private:
     // 残局库缓存

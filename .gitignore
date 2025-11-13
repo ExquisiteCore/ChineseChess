@@ -84,7 +84,7 @@ CMakeLists.txt.user*
 CMakeLists.txt
 /.idea/
 /.claude/
-
+.cache/
 
 
 # 默认忽略的文件

@@ -7,8 +7,6 @@
 #include "../core/Position.h"
 #include "../core/ChessRules.h"
 #include <QList>
-#include <QThreadPool>
-#include <QFuture>
 #include <QtConcurrent>
 #include <limits>
 

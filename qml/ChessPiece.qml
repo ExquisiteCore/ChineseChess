@@ -11,46 +11,9 @@ Item {
     property bool selected: false     // 是否被选中
     property real pieceSize: 40       // 棋子大小
     property bool lifted: false       // 是否被提起（悬浮状态）
-    property bool beingCaptured: false // 是否正在被吃掉
 
     width: pieceSize
     height: pieceSize
-
-    // 吃子动画：缩小+旋转+淡出
-    ParallelAnimation {
-        id: captureAnimation
-        running: beingCaptured
-
-        NumberAnimation {
-            target: chessPiece
-            property: "scale"
-            from: 1.0
-            to: 0.0
-            duration: 500
-            easing.type: Easing.InBack
-        }
-
-        NumberAnimation {
-            target: chessPiece
-            property: "rotation"
-            from: 0
-            to: 360
-            duration: 500
-            easing.type: Easing.InOutQuad
-        }
-
-        NumberAnimation {
-            target: chessPiece
-            property: "opacity"
-            from: 1.0
-            to: 0.0
-            duration: 500
-        }
-
-        onFinished: {
-            // 动画完成后棋子会从模型中移除
-        }
-    }
 
     // 悬浮时提高层级，确保在其他棋子上方
     z: lifted ? 100 : 0

@@ -1,7 +1,0 @@
-<RCC>
-    <qresource prefix="/sounds">
-        <file>resources/sounds/吃.wav</file>
-        <file>resources/sounds/将军.wav</file>
-        <file>resources/sounds/绝杀.wav</file>
-    </qresource>
-</RCC>

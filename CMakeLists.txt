@@ -51,8 +51,6 @@ qt_add_executable(appChineseChess
     # QML 适配层
     src/model/ChessBoardModel.h
     src/model/ChessBoardModel.cpp
-    # 资源文件
-    resources.qrc
 )
 
 qt_add_qml_module(appChineseChess

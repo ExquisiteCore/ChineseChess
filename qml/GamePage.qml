@@ -75,7 +75,7 @@ Rectangle {
             spacing: 10
 
             Button {
-                text: "返回菜单"
+                text: i18n.tr("back_to_menu")
                 Layout.preferredWidth: 120
                 Layout.preferredHeight: 40
 
@@ -100,7 +100,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             Text {
-                text: "当前回合: " + (chessBoard.isRedTurn ? "红方" : "黑方")
+                text: i18n.tr("current_turn") + ": " + (chessBoard.isRedTurn ? i18n.tr("red_turn") : i18n.tr("black_turn"))
                 font.pixelSize: 20
                 font.bold: true
                 color: "white"
@@ -120,7 +120,7 @@ Rectangle {
                     spacing: 5
 
                     Text {
-                        text: "AI思考中"
+                        text: i18n.tr("ai_thinking")
                         font.pixelSize: 12
                         color: "white"
                     }
@@ -145,7 +145,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             Button {
-                text: "悔棋"
+                text: i18n.tr("undo")
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 40
                 enabled: chessBoardModel.canUndo
@@ -171,7 +171,7 @@ Rectangle {
             }
 
             Button {
-                text: "重做"
+                text: i18n.tr("redo")
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 40
                 enabled: chessBoardModel.canRedo
@@ -197,7 +197,7 @@ Rectangle {
             }
 
             Button {
-                text: "重新开始"
+                text: i18n.tr("restart")
                 Layout.preferredWidth: 100
                 Layout.preferredHeight: 40
 
@@ -274,7 +274,7 @@ Rectangle {
 
                 // 标题
                 Text {
-                    text: "游戏信息"
+                    text: i18n.tr("game_info")
                     font.pixelSize: 24
                     font.bold: true
                     color: "#8b4513"
@@ -289,7 +289,7 @@ Rectangle {
 
                 // 游戏状态
                 Text {
-                    text: "状态: " + chessBoardModel.gameStatus
+                    text: i18n.tr("status") + ": " + chessBoardModel.gameStatus
                     font.pixelSize: 14
                     color: "#654321"
                     wrapMode: Text.WordWrap
@@ -297,7 +297,7 @@ Rectangle {
                 }
 
                 Text {
-                    text: "步数: " + chessBoardModel.moveCount
+                    text: i18n.tr("move_count") + ": " + chessBoardModel.moveCount
                     font.pixelSize: 14
                     color: "#654321"
                 }
@@ -323,7 +323,7 @@ Rectangle {
                             spacing: 10
 
                             Text {
-                                text: "AI对手:"
+                                text: i18n.tr("ai_opponent") + ":"
                                 font.pixelSize: 14
                                 font.bold: true
                                 color: "#654321"
@@ -338,7 +338,7 @@ Rectangle {
                             }
 
                             Text {
-                                text: chessBoardModel.aiEnabled ? "已启用" : "已禁用"
+                                text: chessBoardModel.aiEnabled ? i18n.tr("enabled") : i18n.tr("disabled")
                                 font.pixelSize: 12
                                 color: chessBoardModel.aiEnabled ? "#4caf50" : "#999999"
                             }
@@ -351,7 +351,7 @@ Rectangle {
                             enabled: chessBoardModel.aiEnabled
 
                             Text {
-                                text: "难度:"
+                                text: i18n.tr("difficulty") + ":"
                                 font.pixelSize: 13
                                 color: "#654321"
                             }
@@ -359,7 +359,7 @@ Rectangle {
                             ComboBox {
                                 id: difficultyCombo
                                 Layout.fillWidth: true
-                                model: ["简单", "中等", "困难", "专家"]
+                                model: [i18n.tr("easy"), i18n.tr("medium"), i18n.tr("hard"), i18n.tr("expert")]
 
                                 // 使用Component.onCompleted设置初始值，避免绑定循环
                                 Component.onCompleted: {
@@ -405,7 +405,7 @@ Rectangle {
 
                 // 走子历史标题
                 Text {
-                    text: "走子历史"
+                    text: i18n.tr("move_history")
                     font.pixelSize: 18
                     font.bold: true
                     color: "#8b4513"
@@ -455,7 +455,7 @@ Rectangle {
 
                 // 操作按钮组
                 Text {
-                    text: "操作"
+                    text: i18n.tr("operations")
                     font.pixelSize: 18
                     font.bold: true
                     color: "#8b4513"
@@ -474,7 +474,7 @@ Rectangle {
                     spacing: 5
 
                     Button {
-                        text: "提示"
+                        text: i18n.tr("hint")
                         Layout.fillWidth: true
                         Layout.preferredHeight: 35
 
@@ -499,7 +499,7 @@ Rectangle {
                     }
 
                     Button {
-                        text: "求和"
+                        text: i18n.tr("offer_draw")
                         Layout.fillWidth: true
                         Layout.preferredHeight: 35
 
@@ -524,7 +524,7 @@ Rectangle {
                     }
 
                     Button {
-                        text: "认输"
+                        text: i18n.tr("resign")
                         Layout.fillWidth: true
                         Layout.preferredHeight: 35
 
@@ -555,7 +555,7 @@ Rectangle {
                     spacing: 5
 
                     Button {
-                        text: "保存局面"
+                        text: i18n.tr("save_game")
                         Layout.fillWidth: true
                         Layout.preferredHeight: 35
 
@@ -580,7 +580,7 @@ Rectangle {
                     }
 
                     Button {
-                        text: "加载局面"
+                        text: i18n.tr("load_game")
                         Layout.fillWidth: true
                         Layout.preferredHeight: 35
 
@@ -643,7 +643,7 @@ Rectangle {
             spacing: 15
 
             Text {
-                text: "保存局面"
+                text: i18n.tr("save_game_title")
                 font.pixelSize: 24
                 font.bold: true
                 color: "#8b4513"
@@ -651,7 +651,7 @@ Rectangle {
             }
 
             Text {
-                text: "复制下面的 FEN 字符串保存："
+                text: i18n.tr("save_game_desc")
                 font.pixelSize: 14
                 color: "#654321"
             }
@@ -681,7 +681,7 @@ Rectangle {
                 spacing: 10
 
                 Button {
-                    text: "关闭"
+                    text: i18n.tr("close")
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
 
@@ -736,7 +736,7 @@ Rectangle {
             spacing: 15
 
             Text {
-                text: "加载局面"
+                text: i18n.tr("load_game_title")
                 font.pixelSize: 24
                 font.bold: true
                 color: "#8b4513"
@@ -744,7 +744,7 @@ Rectangle {
             }
 
             Text {
-                text: "粘贴 FEN 字符串："
+                text: i18n.tr("load_game_desc")
                 font.pixelSize: 14
                 color: "#654321"
             }
@@ -771,7 +771,7 @@ Rectangle {
             // 错误提示
             Text {
                 id: loadErrorText
-                text: "FEN 字符串格式错误，请检查后重试"
+                text: i18n.tr("fen_error")
                 font.pixelSize: 14
                 color: "#ff0000"
                 visible: false
@@ -784,7 +784,7 @@ Rectangle {
                 spacing: 10
 
                 Button {
-                    text: "取消"
+                    text: i18n.tr("cancel")
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
 
@@ -810,7 +810,7 @@ Rectangle {
                 }
 
                 Button {
-                    text: "加载"
+                    text: i18n.tr("load")
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
 
@@ -1009,7 +1009,7 @@ Rectangle {
                 spacing: 10
 
                 Text {
-                    text: "总步数: " + chessBoardModel.moveCount
+                    text: i18n.tr("total_moves") + ": " + chessBoardModel.moveCount
                     font.pixelSize: 18
                     color: "#654321"
                     Layout.alignment: Qt.AlignHCenter
@@ -1034,7 +1034,7 @@ Rectangle {
                 spacing: 15
 
                 Button {
-                    text: "再来一局"
+                    text: i18n.tr("play_again")
                     Layout.fillWidth: true
                     Layout.preferredHeight: 50
 
@@ -1061,7 +1061,7 @@ Rectangle {
                 }
 
                 Button {
-                    text: "返回菜单"
+                    text: i18n.tr("back_to_menu")
                     Layout.fillWidth: true
                     Layout.preferredHeight: 50
 

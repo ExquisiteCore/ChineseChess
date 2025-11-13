@@ -63,6 +63,9 @@ qt_add_qml_module(appChineseChess
         qml/ChessBoard.qml
         qml/ChessPiece.qml
         qml/SoundManager.qml
+        qml/SettingsPage.qml
+        qml/TranslationManager.qml
+        qml/AppSettings.qml
 )
 
 set_target_properties(appChineseChess PROPERTIES

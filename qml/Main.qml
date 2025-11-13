@@ -5,9 +5,31 @@ Window {
     width: 1024
     height: 768
     visible: true
-    title: qsTr("中国象棋")
+    title: i18n.tr("game_title")
 
     color: "#f5e6d3"
+
+    // 全局翻译管理器
+    TranslationManager {
+        id: i18n
+    }
+
+    // 全局设置管理器
+    AppSettings {
+        id: appSettings
+    }
+
+    // 全局音效管理器
+    SoundManager {
+        id: globalSoundManager
+        soundEnabled: appSettings.soundEnabled
+        volume: appSettings.soundVolume
+    }
+
+    // 组件完成后加载保存的语言设置
+    Component.onCompleted: {
+        i18n.setLanguage(appSettings.language)
+    }
 
     StackView {
         id: stackView
@@ -31,11 +53,29 @@ Window {
                 stackView.push(gamePageComponent)
             }
             onShowSettings: {
-                // 后续实现设置页面
-                console.log("显示设置")
+                stackView.push(settingsPageComponent)
             }
             onExitGame: {
                 Qt.quit()
+            }
+        }
+    }
+
+    Component {
+        id: settingsPageComponent
+        SettingsPage {
+            onBackToMenu: {
+                stackView.pop()
+            }
+            onSettingsChanged: function(volume, soundEnabled, language) {
+                // 更新全局音效设置
+                globalSoundManager.volume = volume
+                globalSoundManager.soundEnabled = soundEnabled
+
+                // 更新翻译
+                i18n.setLanguage(language)
+
+                console.log("设置已应用: 音量=" + volume + ", 音效启用=" + soundEnabled + ", 语言=" + language)
             }
         }
     }

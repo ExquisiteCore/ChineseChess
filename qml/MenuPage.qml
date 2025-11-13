@@ -47,7 +47,7 @@ Rectangle {
             // 主标题
             Text {
                 id: titleText
-                text: "中国象棋"
+                text: i18n.tr("game_title")
                 font.pixelSize: 72
                 font.bold: true
                 font.family: "SimHei"
@@ -77,28 +77,28 @@ Rectangle {
             Layout.alignment: Qt.AlignHCenter
 
             MenuButton {
-                text: "单人对战"
+                text: i18n.tr("single_player")
                 Layout.preferredWidth: 250
                 Layout.preferredHeight: 60
                 onClicked: menuPage.startSinglePlayer()
             }
 
             MenuButton {
-                text: "双人对战"
+                text: i18n.tr("two_player")
                 Layout.preferredWidth: 250
                 Layout.preferredHeight: 60
                 onClicked: menuPage.startTwoPlayer()
             }
 
             MenuButton {
-                text: "设置"
+                text: i18n.tr("settings")
                 Layout.preferredWidth: 250
                 Layout.preferredHeight: 60
                 onClicked: menuPage.showSettings()
             }
 
             MenuButton {
-                text: "退出游戏"
+                text: i18n.tr("exit")
                 Layout.preferredWidth: 250
                 Layout.preferredHeight: 60
                 buttonColor: "#b22222"

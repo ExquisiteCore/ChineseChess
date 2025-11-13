@@ -109,6 +109,7 @@ void OpeningBook::initializeCommonOpenings()
 
     // 2. 起马局 - 马二进三 / 马八进七
     addSymmetricMoves(initialPos, AIMove(0, 1, 2, 2), 90, 52);  // 马二进三
+    addSymmetricMoves(initialPos, AIMove(0, 7, 2, 6), 90, 52);  // 马八进七
 
     // 3. 仙人指路 - 兵三进一 / 兵七进一
     addSymmetricMoves(initialPos, AIMove(3, 2, 4, 2), 85, 51);  // 兵三进一
@@ -161,6 +162,24 @@ void OpeningBook::initializeCommonOpenings()
     // 3. 出炮 - 炮8平6
     addMove(afterHorseMoveKey, AIMove(7, 7, 7, 5), 85, 50);  // 炮8平6
     addMove(afterHorseMoveKey, AIMove(7, 1, 7, 3), 85, 50);  // 炮2平4（镜像）
+
+    // ========== 应对起马（马八进七后的局面） ==========
+
+    Position afterHorseMove2 = initialPos;
+    afterHorseMove2.board().movePiece(0, 7, 2, 6);
+    afterHorseMove2.switchTurn();
+    quint64 afterHorseMove2Key = m_transpositionTable->computeZobristKey(afterHorseMove2);
+
+    // 黑方应对：
+    // 1. 对跳马 - 马2进3
+    addSymmetricMoves(afterHorseMove2, AIMove(9, 1, 7, 2), 100, 52);  // 马2进3
+
+    // 2. 飞象 - 象3进5
+    addSymmetricMoves(afterHorseMove2, AIMove(9, 2, 7, 4), 90, 51);   // 象3进5
+
+    // 3. 出炮 - 炮2平4
+    addMove(afterHorseMove2Key, AIMove(7, 1, 7, 3), 85, 50);  // 炮2平4
+    addMove(afterHorseMove2Key, AIMove(7, 7, 7, 5), 85, 50);  // 炮8平6（镜像）
 
     // ========== 应对仙人指路（兵三进一后的局面） ==========
 

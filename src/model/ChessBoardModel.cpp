@@ -385,40 +385,74 @@ QStringList ChessBoardModel::moveHistory() const
 
 void ChessBoardModel::undoMove()
 {
-    if (m_gameController.undo(m_position)) {
-        // 重建棋盘显示
-        beginResetModel();
-        rebuildPiecesList();
-        setLiftedPieceIndex(-1);
-        endResetModel();
+    // 在人机对战模式下，悔棋需要回退2步（玩家和AI各一步）
+    // 在双人对战模式下，悔棋只需回退1步
+    int undoSteps = (m_aiEnabled && !m_isTwoPlayerMode) ? 2 : 1;
 
-        emit isRedTurnChanged();
-        emit fenStringChanged();
-        emit boardChanged();
-        emit moveHistoryChanged();
-        checkGameStatus();
-
-        qDebug() << "悔棋成功，当前步数:" << moveCount();
+    // 检查是否有足够的步数可以悔棋
+    if (m_gameController.getCurrentMoveNumber() < undoSteps) {
+        qDebug() << "无法悔棋：历史记录不足" << undoSteps << "步";
+        return;
     }
+
+    // 执行悔棋
+    for (int i = 0; i < undoSteps; ++i) {
+        if (!m_gameController.undo(m_position)) {
+            qDebug() << "悔棋失败在第" << (i + 1) << "步";
+            break;
+        }
+    }
+
+    // 重建棋盘显示
+    beginResetModel();
+    rebuildPiecesList();
+    setLiftedPieceIndex(-1);
+    endResetModel();
+
+    emit isRedTurnChanged();
+    emit fenStringChanged();
+    emit boardChanged();
+    emit moveHistoryChanged();
+    checkGameStatus();
+
+    qDebug() << "悔棋成功，回退了" << undoSteps << "步，当前步数:" << moveCount()
+             << "当前回合:" << (m_position.currentTurn() == PieceColor::Red ? "红方" : "黑方");
 }
 
 void ChessBoardModel::redoMove()
 {
-    if (m_gameController.redo(m_position)) {
-        // 重建棋盘显示
-        beginResetModel();
-        rebuildPiecesList();
-        setLiftedPieceIndex(-1);
-        endResetModel();
+    // 在人机对战模式下，重做需要恢复2步（玩家和AI各一步）
+    // 在双人对战模式下，重做只需恢复1步
+    int redoSteps = (m_aiEnabled && !m_isTwoPlayerMode) ? 2 : 1;
 
-        emit isRedTurnChanged();
-        emit fenStringChanged();
-        emit boardChanged();
-        emit moveHistoryChanged();
-        checkGameStatus();
-
-        qDebug() << "重做成功，当前步数:" << moveCount();
+    // 检查是否有足够的步数可以重做
+    if (!m_gameController.canRedo()) {
+        qDebug() << "无法重做：没有可重做的历史";
+        return;
     }
+
+    // 执行重做
+    for (int i = 0; i < redoSteps; ++i) {
+        if (!m_gameController.redo(m_position)) {
+            qDebug() << "重做失败在第" << (i + 1) << "步";
+            break;
+        }
+    }
+
+    // 重建棋盘显示
+    beginResetModel();
+    rebuildPiecesList();
+    setLiftedPieceIndex(-1);
+    endResetModel();
+
+    emit isRedTurnChanged();
+    emit fenStringChanged();
+    emit boardChanged();
+    emit moveHistoryChanged();
+    checkGameStatus();
+
+    qDebug() << "重做成功，恢复了" << redoSteps << "步，当前步数:" << moveCount()
+             << "当前回合:" << (m_position.currentTurn() == PieceColor::Red ? "红方" : "黑方");
 }
 
 void ChessBoardModel::startNewGame()
@@ -426,12 +460,19 @@ void ChessBoardModel::startNewGame()
     // 重置棋盘状态
     resetBoardState();
 
-    // 重置游戏控制器（传入当前局面的FEN）
+    // 清空游戏控制器的历史记录并重置（传入当前局面的FEN）
+    m_gameController.clearHistory();  // 先清空历史
     m_gameController.startNewGame(m_position.toFen());
 
     // 重置棋盘旋转角度
     m_boardRotation = 0;
     emit boardRotationChanged();
+
+    // 发出历史记录改变信号，确保UI更新
+    emit moveHistoryChanged();
+    emit canUndoChanged();
+    emit canRedoChanged();
+    emit moveCountChanged();
 
     qDebug() << "开始新游戏";
 }

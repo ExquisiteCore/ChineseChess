@@ -185,9 +185,13 @@ bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
     const ChessPiece *movedPiece = m_position.board().pieceAt(fromRow, fromCol);
     const ChessPiece *targetPiece = m_position.board().pieceAt(toRow, toCol);
     QString capturedPiece = targetPiece ? targetPiece->chineseName() : "";
+    bool isCapture = (targetPiece != nullptr);  // 记录是否吃子
 
     // 执行移动
     m_position.board().movePiece(fromRow, fromCol, toRow, toCol);
+
+    // 发射棋子移动信号（用于音效）
+    emit pieceMoved(isCapture);
 
     // 切换回合
     m_position.switchTurn();
@@ -295,6 +299,7 @@ void ChessBoardModel::checkGameStatus()
     if (!redKingExists) {
         m_gameStatus = "黑方胜 - 红方帅被吃";
         qDebug() << "游戏结束:" << m_gameStatus;
+        emit checkmateDetected();  // 发射将死信号（用于音效）
         emit gameOver(m_gameStatus);
         emit gameStatusChanged();
         return;
@@ -303,6 +308,7 @@ void ChessBoardModel::checkGameStatus()
     if (!blackKingExists) {
         m_gameStatus = "红方胜 - 黑方将被吃";
         qDebug() << "游戏结束:" << m_gameStatus;
+        emit checkmateDetected();  // 发射将死信号（用于音效）
         emit gameOver(m_gameStatus);
         emit gameStatusChanged();
         return;
@@ -312,6 +318,7 @@ void ChessBoardModel::checkGameStatus()
     if (ChessRules::isCheckmate(m_position.board(), currentColor)) {
         m_gameStatus = opponentName + "胜 - " + colorName + "被将死";
         qDebug() << "游戏结束:" << m_gameStatus;
+        emit checkmateDetected();  // 发射将死信号（用于音效）
         emit gameOver(m_gameStatus);
         emit gameStatusChanged();
         return;
@@ -330,6 +337,7 @@ void ChessBoardModel::checkGameStatus()
     if (ChessRules::isInCheck(m_position.board(), currentColor)) {
         m_gameStatus = colorName + "被将军！";
         qDebug() << m_gameStatus;
+        emit checkDetected();  // 发射将军信号（用于音效）
         emit gameStatusChanged();
         return;
     }
@@ -531,6 +539,7 @@ void ChessBoardModel::resign()
     QString opponentName = isRedTurn() ? "黑方" : "红方";
     m_gameStatus = opponentName + "胜 - " + colorName + "认输";
     qDebug() << "游戏结束:" << m_gameStatus;
+    emit checkmateDetected();  // 发射将死信号（用于音效）
     emit gameOver(m_gameStatus);
     emit gameStatusChanged();
 }

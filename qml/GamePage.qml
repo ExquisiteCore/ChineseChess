@@ -10,6 +10,37 @@ Rectangle {
 
     signal backToMenu()
 
+    // 音效管理器
+    SoundManager {
+        id: soundManager
+        soundEnabled: true
+        volume: 0.7
+    }
+
+    // 连接C++信号到音效播放
+    Connections {
+        target: chessBoardModel
+
+        // 棋子移动信号
+        function onPieceMoved(isCapture) {
+            if (isCapture) {
+                soundManager.playSound(SoundManager.SoundType.Capture)
+            } else {
+                soundManager.playSound(SoundManager.SoundType.Move)
+            }
+        }
+
+        // 将军信号
+        function onCheckDetected() {
+            soundManager.playSound(SoundManager.SoundType.Check)
+        }
+
+        // 将死信号
+        function onCheckmateDetected() {
+            soundManager.playSound(SoundManager.SoundType.Checkmate)
+        }
+    }
+
     // 组件创建完成后设置游戏模式
     Component.onCompleted: {
         console.log("GamePage loaded with gameMode:", gameMode)

@@ -121,6 +121,11 @@ signals:
     void isTwoPlayerModeChanged();           // 双人模式状态改变
     void boardRotationChanged();             // 棋盘旋转角度改变
 
+    // 音效相关信号
+    void pieceMoved(bool isCapture);         // 棋子移动信号（是否吃子）
+    void checkDetected();                    // 将军信号
+    void checkmateDetected();                // 将死信号
+
 private:
     void rebuildPiecesList();  // 从 Position 重建棋子列表
     void checkGameStatus();     // 检查游戏状态

@@ -16,7 +16,7 @@ if(WIN32)
     endif()
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent Multimedia)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -51,6 +51,8 @@ qt_add_executable(appChineseChess
     # QML 适配层
     src/model/ChessBoardModel.h
     src/model/ChessBoardModel.cpp
+    # 资源文件
+    resources.qrc
 )
 
 qt_add_qml_module(appChineseChess
@@ -62,6 +64,7 @@ qt_add_qml_module(appChineseChess
         qml/GamePage.qml
         qml/ChessBoard.qml
         qml/ChessPiece.qml
+        qml/SoundManager.qml
 )
 
 set_target_properties(appChineseChess PROPERTIES
@@ -73,7 +76,7 @@ set_target_properties(appChineseChess PROPERTIES
 )
 
 target_link_libraries(appChineseChess
-    PRIVATE Qt6::Quick Qt6::Concurrent
+    PRIVATE Qt6::Quick Qt6::Concurrent Qt6::Multimedia
 )
 
 include(GNUInstallDirs)

@@ -43,28 +43,28 @@ Item {
     // 吃子音效
     SoundEffect {
         id: captureSound
-        source: "qrc:/sounds/resources/sounds/吃.m4a"
+        source: "qrc:/sounds/resources/sounds/吃.wav"
         volume: root.volume
     }
 
     // 将军音效
     SoundEffect {
         id: checkSound
-        source: "qrc:/sounds/resources/sounds/将军.m4a"
+        source: "qrc:/sounds/resources/sounds/将军.wav"
         volume: root.volume
     }
 
     // 绝杀音效
     SoundEffect {
         id: checkmateSound
-        source: "qrc:/sounds/resources/sounds/绝杀.m4a"
+        source: "qrc:/sounds/resources/sounds/绝杀.wav"
         volume: root.volume
     }
 
     // 普通移动音效（复用吃子音效但音量更低）
     SoundEffect {
         id: moveSound
-        source: "qrc:/sounds/resources/sounds/吃.m4a"
+        source: "qrc:/sounds/resources/sounds/吃.wav"
         volume: root.volume * 0.5
     }
 }

@@ -46,7 +46,6 @@ public:
     // 开局库
     void setOpeningBookEnabled(bool enabled);
     bool isOpeningBookEnabled() const;
-    bool loadOpeningBook(const QString &filename);
 
     // 残局库
     void setEndgameTablebaseEnabled(bool enabled);

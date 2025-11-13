@@ -14,7 +14,7 @@ ChessAI::ChessAI(QObject *parent)
     m_searchEngine = std::make_unique<SearchEngine>(m_transpositionTable.get(),
                                                       m_evaluator.get(),
                                                       m_moveOrderer.get());
-    m_openingBook = std::make_unique<OpeningBook>();
+    m_openingBook = std::make_unique<OpeningBook>(m_transpositionTable.get());
     m_endgameTablebase = std::make_unique<EndgameTablebase>();
 
     qDebug() << "ChessAI 增强版初始化完成";
@@ -183,14 +183,6 @@ void ChessAI::setOpeningBookEnabled(bool enabled)
 bool ChessAI::isOpeningBookEnabled() const
 {
     return m_openingBook && m_openingBook->isEnabled();
-}
-
-bool ChessAI::loadOpeningBook(const QString &filename)
-{
-    if (m_openingBook) {
-        return m_openingBook->loadFromFile(filename);
-    }
-    return false;
 }
 
 void ChessAI::setEndgameTablebaseEnabled(bool enabled)

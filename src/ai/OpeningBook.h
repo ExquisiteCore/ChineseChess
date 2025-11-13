@@ -6,7 +6,6 @@
 #include <QHash>
 #include <QList>
 #include <QString>
-#include <QFile>
 
 // 开局库条目
 struct BookEntry {
@@ -24,13 +23,7 @@ struct BookEntry {
 class OpeningBook
 {
 public:
-    OpeningBook();
-
-    // 加载开局库
-    bool loadFromFile(const QString &filename);
-
-    // 保存开局库
-    bool saveToFile(const QString &filename);
+    OpeningBook(TranspositionTable *tt);
 
     // 查询开局走法（返回空列表表示不在开局库中）
     QList<BookEntry> probe(const Position &position, quint64 zobristKey);
@@ -56,9 +49,10 @@ private:
     // 开局库：zobrist_key -> 可能的走法列表
     QHash<quint64, QList<BookEntry>> m_book;
     bool m_enabled;
+    TranspositionTable *m_transpositionTable;
 
     // 辅助函数：添加对称位置
-    void addSymmetricMoves(quint64 key, const AIMove &move, int weight, int winRate);
+    void addSymmetricMoves(const Position &pos, const AIMove &move, int weight, int winRate);
 };
 
 #endif // OPENINGBOOK_H

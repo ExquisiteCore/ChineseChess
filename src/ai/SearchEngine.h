@@ -7,6 +7,9 @@
 #include "../core/Position.h"
 #include "../core/ChessRules.h"
 #include <QList>
+#include <QThreadPool>
+#include <QFuture>
+#include <QtConcurrent>
 #include <limits>
 
 // 搜索引擎（负责所有搜索算法）
@@ -17,6 +20,9 @@ public:
 
     // 迭代加深搜索（主入口）
     AIMove iterativeDeepening(Position &position, int maxDepth, bool isMaximizing, AIMove *bestMove = nullptr);
+
+    // 根节点并行搜索
+    AIMove parallelSearch(Position &position, int depth, bool isMaximizing, int threadCount = 0);
 
     // PVS搜索（主要变例搜索）
     int pvs(Position &position, int depth, int alpha, int beta, bool isMaximizing, bool isPV, int maxDepth);
@@ -42,6 +48,14 @@ public:
     void setIterativeDeepeningEnabled(bool enabled) { m_useIterativeDeepening = enabled; }
     bool isIterativeDeepeningEnabled() const { return m_useIterativeDeepening; }
 
+    // 启用/禁用并行搜索
+    void setParallelSearchEnabled(bool enabled) { m_useParallelSearch = enabled; }
+    bool isParallelSearchEnabled() const { return m_useParallelSearch; }
+
+    // 设置并行线程数（0=自动检测）
+    void setThreadCount(int count) { m_threadCount = count; }
+    int getThreadCount() const { return m_threadCount; }
+
     // 重置统计信息
     void resetStatistics();
 
@@ -63,6 +77,15 @@ private:
 
     // 选项
     bool m_useIterativeDeepening;
+    bool m_useParallelSearch;
+    int m_threadCount;  // 0表示自动检测
+
+    // 并行搜索辅助结构
+    struct MoveScore {
+        AIMove move;
+        int score;
+        Position position;  // 执行移动后的局面
+    };
 
     // 常量定义
     static constexpr int INF = std::numeric_limits<int>::max() / 2;

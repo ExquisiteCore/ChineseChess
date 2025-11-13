@@ -22,6 +22,7 @@ ChessAI::ChessAI(QObject *parent)
     qDebug() << "- 残局库: 启用";
     qDebug() << "- 迭代加深: 启用";
     qDebug() << "- 高级评估: 启用";
+    qDebug() << "- 并行搜索: 启用 (线程数:" << (m_searchEngine->getThreadCount() == 0 ? "自动" : QString::number(m_searchEngine->getThreadCount())) << ")";
 }
 
 ChessAI::~ChessAI()
@@ -85,8 +86,11 @@ AIMove ChessAI::getBestMove(const Position &position)
 
     AIMove bestMove;
 
-    // 3. 使用迭代加深或普通搜索
-    if (m_searchEngine->isIterativeDeepeningEnabled()) {
+    // 3. 使用并行搜索、迭代加深或普通搜索
+    if (m_searchEngine->isParallelSearchEnabled()) {
+        qDebug() << "使用并行搜索";
+        bestMove = m_searchEngine->parallelSearch(searchPos, m_maxDepth, isMaximizing);
+    } else if (m_searchEngine->isIterativeDeepeningEnabled()) {
         qDebug() << "使用迭代加深搜索";
         bestMove = m_searchEngine->iterativeDeepening(searchPos, m_maxDepth, isMaximizing);
     } else {
@@ -101,7 +105,7 @@ AIMove ChessAI::getBestMove(const Position &position)
         }
 
         quint64 posKey = m_transpositionTable->computeZobristKey(searchPos);
-        AIMove *ttMove = m_transpositionTable->getBestMove(posKey);
+        std::optional<AIMove> ttMove = m_transpositionTable->getBestMove(posKey);
 
         m_moveOrderer->sortMoves(allMoves, searchPos, 0, ttMove);
 
@@ -226,4 +230,30 @@ void ChessAI::setAdvancedEvaluationEnabled(bool enabled)
 bool ChessAI::isAdvancedEvaluationEnabled() const
 {
     return m_evaluator && m_evaluator->isAdvancedEvaluationEnabled();
+}
+
+void ChessAI::setParallelSearchEnabled(bool enabled)
+{
+    if (m_searchEngine) {
+        m_searchEngine->setParallelSearchEnabled(enabled);
+        qDebug() << "并行搜索:" << (enabled ? "启用" : "禁用");
+    }
+}
+
+bool ChessAI::isParallelSearchEnabled() const
+{
+    return m_searchEngine && m_searchEngine->isParallelSearchEnabled();
+}
+
+void ChessAI::setThreadCount(int count)
+{
+    if (m_searchEngine) {
+        m_searchEngine->setThreadCount(count);
+        qDebug() << "线程数设置为:" << (count == 0 ? "自动" : QString::number(count));
+    }
+}
+
+int ChessAI::getThreadCount() const
+{
+    return m_searchEngine ? m_searchEngine->getThreadCount() : 0;
 }

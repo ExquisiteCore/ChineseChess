@@ -60,6 +60,12 @@ public:
     void setAdvancedEvaluationEnabled(bool enabled);
     bool isAdvancedEvaluationEnabled() const;
 
+    // 并行搜索
+    void setParallelSearchEnabled(bool enabled);
+    bool isParallelSearchEnabled() const;
+    void setThreadCount(int count);
+    int getThreadCount() const;
+
 signals:
     void searchProgress(int depth, int nodes);
     void moveFound(int fromRow, int fromCol, int toRow, int toCol, int score);

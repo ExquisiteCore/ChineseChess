@@ -13,6 +13,8 @@ SearchEngine::SearchEngine(TranspositionTable *tt, Evaluator *evaluator, MoveOrd
     , m_lmrReductions(0)
     , m_currentDepth(0)
     , m_useIterativeDeepening(true)
+    , m_useParallelSearch(true)
+    , m_threadCount(0)  // 0表示自动检测
 {
 }
 
@@ -49,7 +51,7 @@ AIMove SearchEngine::iterativeDeepening(Position &position, int maxDepth, bool i
 
         // 使用上一层的最佳移动进行排序
         quint64 posKey = m_transpositionTable->computeZobristKey(position);
-        AIMove *ttMove = m_transpositionTable->getBestMove(posKey);
+        std::optional<AIMove> ttMove = m_transpositionTable->getBestMove(posKey);
         m_moveOrderer->sortMoves(moves, position, 0, ttMove);
 
         AIMove currentBestMove;
@@ -158,7 +160,7 @@ int SearchEngine::pvs(Position &position, int depth, int alpha, int beta, bool i
     }
 
     // 移动排序
-    AIMove *ttMove = m_transpositionTable->getBestMove(posKey);
+    std::optional<AIMove> ttMove = m_transpositionTable->getBestMove(posKey);
     m_moveOrderer->sortMoves(moves, position, maxDepth - depth, ttMove);
 
     AIMove bestMove;
@@ -415,4 +417,84 @@ QList<AIMove> SearchEngine::generateCaptureMoves(const Position &position, Piece
     }
 
     return moves;
+}
+
+// 根节点并行搜索
+AIMove SearchEngine::parallelSearch(Position &position, int depth, bool isMaximizing, int threadCount)
+{
+    qDebug() << "=== 并行搜索开始 ===";
+
+    // 确定使用的线程数
+    if (threadCount == 0) {
+        threadCount = QThread::idealThreadCount();
+        if (threadCount <= 0) threadCount = 4;  // 默认4线程
+    }
+
+    qDebug() << "使用" << threadCount << "个线程进行并行搜索";
+
+    PieceColor currentColor = position.currentTurn();
+    QList<AIMove> allMoves = generateAllMoves(position, currentColor);
+
+    if (allMoves.isEmpty()) {
+        qDebug() << "没有可用的移动";
+        return AIMove();
+    }
+
+    // 对移动进行排序
+    quint64 posKey = m_transpositionTable->computeZobristKey(position);
+    std::optional<AIMove> ttMove = m_transpositionTable->getBestMove(posKey);
+    m_moveOrderer->sortMoves(allMoves, position, 0, ttMove);
+
+    // 准备MoveScore列表
+    QList<MoveScore> moveScores;
+    for (const AIMove &move : allMoves) {
+        MoveScore ms;
+        ms.move = move;
+        ms.score = -INF;
+        ms.position = position;
+        ms.position.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
+        ms.position.switchTurn();
+        moveScores.append(ms);
+    }
+
+    // Lambda函数：评估单个移动
+    auto evaluateMove = [this, depth, isMaximizing](const MoveScore &ms) -> MoveScore {
+        MoveScore result = ms;
+        Position tempPos = ms.position;
+        
+        result.score = pvs(tempPos, depth - 1, -INF, INF, !isMaximizing, true, depth);
+        
+        return result;
+    };
+
+    // 使用Qt并发框架并行评估所有移动
+    QList<MoveScore> results = QtConcurrent::blockingMapped(moveScores, evaluateMove);
+
+    // 找到最佳移动
+    AIMove bestMove;
+    int bestScore = isMaximizing ? -INF : INF;
+
+    for (const MoveScore &result : results) {
+        if (isMaximizing) {
+            if (result.score > bestScore) {
+                bestScore = result.score;
+                bestMove = result.move;
+            }
+        } else {
+            if (result.score < bestScore) {
+                bestScore = result.score;
+                bestMove = result.move;
+            }
+        }
+    }
+
+    // 存储到置换表
+    m_transpositionTable->store(posKey, depth, bestScore, TTEntry::EXACT, bestMove);
+
+    qDebug() << "并行搜索最佳移动:" << bestMove.fromRow << bestMove.fromCol
+             << "->" << bestMove.toRow << bestMove.toCol
+             << "评分:" << bestScore;
+    qDebug() << "=== 并行搜索完成 ===";
+
+    return bestMove;
 }

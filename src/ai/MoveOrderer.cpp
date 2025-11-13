@@ -7,7 +7,7 @@ MoveOrderer::MoveOrderer(Evaluator *evaluator)
     reset();
 }
 
-void MoveOrderer::sortMoves(QList<AIMove> &moves, const Position &position, int depth, const AIMove *ttMove)
+void MoveOrderer::sortMoves(QList<AIMove> &moves, const Position &position, int depth, const std::optional<AIMove> &ttMove)
 {
     // 使用快速评估给每个移动打分
     for (AIMove &move : moves) {
@@ -20,12 +20,12 @@ void MoveOrderer::sortMoves(QList<AIMove> &moves, const Position &position, int 
     });
 }
 
-int MoveOrderer::quickEvaluateMove(const Position &position, const AIMove &move, int depth, const AIMove *ttMove)
+int MoveOrderer::quickEvaluateMove(const Position &position, const AIMove &move, int depth, const std::optional<AIMove> &ttMove)
 {
     int score = 0;
 
     // 1. 置换表移动（最高优先级）
-    if (ttMove && ttMove->fromRow == move.fromRow && ttMove->fromCol == move.fromCol &&
+    if (ttMove.has_value() && ttMove->fromRow == move.fromRow && ttMove->fromCol == move.fromCol &&
         ttMove->toRow == move.toRow && ttMove->toCol == move.toCol) {
         return 1000000;
     }

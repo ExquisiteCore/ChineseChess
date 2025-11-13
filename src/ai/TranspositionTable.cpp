@@ -5,6 +5,7 @@
 TranspositionTable::TranspositionTable()
     : m_initialized(false)
     , m_hits(0)
+    , m_threadSafe(true)
 {
     initialize();
 }
@@ -45,83 +46,165 @@ quint64 TranspositionTable::computeZobristKey(const Position &position)
 
 bool TranspositionTable::probe(quint64 key, int depth, int alpha, int beta, int &score)
 {
-    if (!m_table.contains(key)) {
+    if (m_threadSafe) {
+        QMutexLocker locker(&m_mutex);
+
+        if (!m_table.contains(key)) {
+            return false;
+        }
+
+        const TTEntry &entry = m_table[key];
+
+        if (entry.depth < depth) {
+            return false;
+        }
+
+        if (entry.flag == TTEntry::EXACT) {
+            score = entry.score;
+            m_hits++;
+            return true;
+        }
+
+        if (entry.flag == TTEntry::LOWER_BOUND && entry.score >= beta) {
+            score = entry.score;
+            m_hits++;
+            return true;
+        }
+
+        if (entry.flag == TTEntry::UPPER_BOUND && entry.score <= alpha) {
+            score = entry.score;
+            m_hits++;
+            return true;
+        }
+
+        return false;
+    } else {
+        // 单线程模式，无锁
+        if (!m_table.contains(key)) {
+            return false;
+        }
+
+        const TTEntry &entry = m_table[key];
+
+        if (entry.depth < depth) {
+            return false;
+        }
+
+        if (entry.flag == TTEntry::EXACT) {
+            score = entry.score;
+            m_hits++;
+            return true;
+        }
+
+        if (entry.flag == TTEntry::LOWER_BOUND && entry.score >= beta) {
+            score = entry.score;
+            m_hits++;
+            return true;
+        }
+
+        if (entry.flag == TTEntry::UPPER_BOUND && entry.score <= alpha) {
+            score = entry.score;
+            m_hits++;
+            return true;
+        }
+
         return false;
     }
-
-    const TTEntry &entry = m_table[key];
-
-    if (entry.depth < depth) {
-        return false;
-    }
-
-    if (entry.flag == TTEntry::EXACT) {
-        score = entry.score;
-        m_hits++;
-        return true;
-    }
-
-    if (entry.flag == TTEntry::LOWER_BOUND && entry.score >= beta) {
-        score = entry.score;
-        m_hits++;
-        return true;
-    }
-
-    if (entry.flag == TTEntry::UPPER_BOUND && entry.score <= alpha) {
-        score = entry.score;
-        m_hits++;
-        return true;
-    }
-
-    return false;
 }
 
 void TranspositionTable::store(quint64 key, int depth, int score, TTEntry::Flag flag, const AIMove &bestMove)
 {
-    // 如果已存在该键
-    if (m_table.contains(key)) {
-        TTEntry &existing = m_table[key];
-        // 只有当新结果深度更深或相等时才替换（深度优先策略）
-        if (depth >= existing.depth) {
-            existing.zobristKey = key;
-            existing.depth = depth;
-            existing.score = score;
-            existing.flag = flag;
-            existing.bestMove = bestMove;
+    if (m_threadSafe) {
+        QMutexLocker locker(&m_mutex);
+
+        // 如果已存在该键
+        if (m_table.contains(key)) {
+            TTEntry &existing = m_table[key];
+            // 只有当新结果深度更深或相等时才替换（深度优先策略）
+            if (depth >= existing.depth) {
+                existing.zobristKey = key;
+                existing.depth = depth;
+                existing.score = score;
+                existing.flag = flag;
+                existing.bestMove = bestMove;
+            }
+            return;
         }
-        return;
+
+        // 如果表满了，使用简单的替换策略
+        if (m_table.size() >= TT_SIZE) {
+            // 直接删除第一个元素（FIFO策略，简单高效）
+            auto it = m_table.begin();
+            m_table.erase(it);
+        }
+
+        // 存储新项
+        TTEntry entry;
+        entry.zobristKey = key;
+        entry.depth = depth;
+        entry.score = score;
+        entry.flag = flag;
+        entry.bestMove = bestMove;
+
+        m_table[key] = entry;
+    } else {
+        // 单线程模式，无锁
+        if (m_table.contains(key)) {
+            TTEntry &existing = m_table[key];
+            if (depth >= existing.depth) {
+                existing.zobristKey = key;
+                existing.depth = depth;
+                existing.score = score;
+                existing.flag = flag;
+                existing.bestMove = bestMove;
+            }
+            return;
+        }
+
+        if (m_table.size() >= TT_SIZE) {
+            auto it = m_table.begin();
+            m_table.erase(it);
+        }
+
+        TTEntry entry;
+        entry.zobristKey = key;
+        entry.depth = depth;
+        entry.score = score;
+        entry.flag = flag;
+        entry.bestMove = bestMove;
+
+        m_table[key] = entry;
     }
-
-    // 如果表满了，使用简单的替换策略
-    if (m_table.size() >= TT_SIZE) {
-        // 直接删除第一个元素（FIFO策略，简单高效）
-        auto it = m_table.begin();
-        m_table.erase(it);
-    }
-
-    // 存储新项
-    TTEntry entry;
-    entry.zobristKey = key;
-    entry.depth = depth;
-    entry.score = score;
-    entry.flag = flag;
-    entry.bestMove = bestMove;
-
-    m_table[key] = entry;
 }
 
-AIMove* TranspositionTable::getBestMove(quint64 key)
+std::optional<AIMove> TranspositionTable::getBestMove(quint64 key)
 {
-    if (!m_table.contains(key)) {
-        return nullptr;
-    }
+    if (m_threadSafe) {
+        QMutexLocker locker(&m_mutex);
 
-    TTEntry &entry = m_table[key];
-    if (entry.bestMove.isValid()) {
-        return &entry.bestMove;
-    }
+        if (!m_table.contains(key)) {
+            return std::nullopt;
+        }
 
-    return nullptr;
+        TTEntry &entry = m_table[key];
+        if (entry.bestMove.isValid()) {
+            return entry.bestMove;  // 返回值拷贝，线程安全
+        }
+
+        return std::nullopt;
+    } else {
+        // 单线程模式
+        if (!m_table.contains(key)) {
+            return std::nullopt;
+        }
+
+        TTEntry &entry = m_table[key];
+        if (entry.bestMove.isValid()) {
+            return entry.bestMove;
+        }
+
+        return std::nullopt;
+    }
 }
 
 void TranspositionTable::clear()

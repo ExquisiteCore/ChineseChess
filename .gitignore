@@ -85,7 +85,10 @@ CMakeLists.txt
 /.idea/
 /.claude/
 .cache/
-
+cmake-build-release-mingw/
+cmake-build-debug-mingw/
+build-release/
+release-package/
 
 # 默认忽略的文件
 /shelf/

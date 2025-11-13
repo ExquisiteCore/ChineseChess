@@ -857,4 +857,239 @@ Rectangle {
             }
         }
     }
+
+    // 游戏结束弹窗（胜利/失败）
+    Rectangle {
+        id: gameOverDialog
+        anchors.centerIn: parent
+        width: 500
+        height: 400
+        color: "#f5f5f5"
+        radius: 20
+        border.color: "#8b4513"
+        border.width: 5
+        visible: false
+        z: 200
+        scale: 0.3
+        opacity: 0
+
+        property string resultText: ""
+        property bool isVictory: false
+
+        // 出现动画
+        ParallelAnimation {
+            id: gameOverShowAnimation
+            NumberAnimation {
+                target: gameOverDialog
+                property: "scale"
+                from: 0.3
+                to: 1.0
+                duration: 600
+                easing.type: Easing.OutBack
+            }
+            NumberAnimation {
+                target: gameOverDialog
+                property: "opacity"
+                from: 0.0
+                to: 1.0
+                duration: 400
+            }
+        }
+
+        // 背景遮罩
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -1000
+            color: "#80000000"
+            z: -1
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 30
+            spacing: 20
+
+            // 结果图标和文字
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 150
+
+                // 胜利图标（王冠）
+                Text {
+                    visible: gameOverDialog.isVictory
+                    anchors.centerIn: parent
+                    text: "👑"
+                    font.pixelSize: 100
+
+                    // 旋转闪烁动画
+                    SequentialAnimation on rotation {
+                        running: gameOverDialog.visible && gameOverDialog.isVictory
+                        loops: Animation.Infinite
+                        NumberAnimation { from: -10; to: 10; duration: 500; easing.type: Easing.InOutQuad }
+                        NumberAnimation { from: 10; to: -10; duration: 500; easing.type: Easing.InOutQuad }
+                    }
+
+                    SequentialAnimation on scale {
+                        running: gameOverDialog.visible && gameOverDialog.isVictory
+                        loops: Animation.Infinite
+                        NumberAnimation { from: 1.0; to: 1.15; duration: 800; easing.type: Easing.InOutQuad }
+                        NumberAnimation { from: 1.15; to: 1.0; duration: 800; easing.type: Easing.InOutQuad }
+                    }
+                }
+
+                // 失败图标（哭脸）
+                Text {
+                    visible: !gameOverDialog.isVictory
+                    anchors.centerIn: parent
+                    text: "😢"
+                    font.pixelSize: 100
+
+                    // 摇晃动画
+                    SequentialAnimation on x {
+                        running: gameOverDialog.visible && !gameOverDialog.isVictory
+                        loops: Animation.Infinite
+                        NumberAnimation { from: parent.width / 2 - 50; to: parent.width / 2 + 50; duration: 100 }
+                        NumberAnimation { from: parent.width / 2 + 50; to: parent.width / 2 - 50; duration: 100 }
+                        NumberAnimation { from: parent.width / 2 - 50; to: parent.width / 2; duration: 100 }
+                    }
+                }
+            }
+
+            // 结果文字
+            Text {
+                text: gameOverDialog.resultText
+                font.pixelSize: 32
+                font.bold: true
+                color: gameOverDialog.isVictory ? "#4caf50" : "#f44336"
+                Layout.alignment: Qt.AlignHCenter
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            // 分隔线
+            Rectangle {
+                Layout.fillWidth: true
+                height: 2
+                color: "#8b4513"
+            }
+
+            // 统计信息
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Text {
+                    text: "总步数: " + chessBoardModel.moveCount
+                    font.pixelSize: 18
+                    color: "#654321"
+                    Layout.alignment: Qt.AlignHCenter
+                }
+
+                Text {
+                    text: chessBoardModel.gameStatus
+                    font.pixelSize: 16
+                    color: "#654321"
+                    Layout.alignment: Qt.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            Item { Layout.fillHeight: true }
+
+            // 按钮组
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 15
+
+                Button {
+                    text: "再来一局"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+
+                    contentItem: Text {
+                        text: parent.text
+                        font.pixelSize: 18
+                        font.bold: true
+                        color: "white"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    background: Rectangle {
+                        color: parent.pressed ? "#4caf50" : (parent.hovered ? "#66bb6a" : "#81c784")
+                        radius: 8
+                        border.color: "#388e3c"
+                        border.width: 2
+                    }
+
+                    onClicked: {
+                        gameOverDialog.visible = false
+                        chessBoardModel.startNewGame()
+                    }
+                }
+
+                Button {
+                    text: "返回菜单"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+
+                    contentItem: Text {
+                        text: parent.text
+                        font.pixelSize: 18
+                        font.bold: true
+                        color: "white"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    background: Rectangle {
+                        color: parent.pressed ? "#654321" : (parent.hovered ? "#a0522d" : "#8b4513")
+                        radius: 8
+                        border.color: "#5d3a1a"
+                        border.width: 2
+                    }
+
+                    onClicked: {
+                        gameOverDialog.visible = false
+                        gamePage.backToMenu()
+                    }
+                }
+            }
+        }
+    }
+
+    // 监听游戏结束信号
+    Connections {
+        target: chessBoardModel
+        function onGameOver(result) {
+            console.log("游戏结束:", result)
+
+            // 设置结果文字
+            gameOverDialog.resultText = result
+
+            // 判断是否胜利（如果是红方且结果包含"红方胜"，或者结果包含"和棋"）
+            if (result.indexOf("红方胜") >= 0) {
+                gameOverDialog.isVictory = true
+            } else if (result.indexOf("黑方胜") >= 0) {
+                gameOverDialog.isVictory = false
+            } else if (result.indexOf("和棋") >= 0) {
+                gameOverDialog.isVictory = true  // 和棋也算不错的结果
+            } else {
+                gameOverDialog.isVictory = false
+            }
+
+            // 延迟显示弹窗，让玩家看清最后一步
+            gameOverShowTimer.start()
+        }
+    }
+
+    Timer {
+        id: gameOverShowTimer
+        interval: 800
+        onTriggered: {
+            gameOverDialog.visible = true
+            gameOverShowAnimation.start()
+        }
+    }
 }

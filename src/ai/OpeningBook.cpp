@@ -2,6 +2,7 @@
 #include "../core/Board.h"
 #include <QRandomGenerator>
 #include <QDebug>
+#include <QtMath>
 
 OpeningBook::OpeningBook(TranspositionTable *tt)
     : m_enabled(true)
@@ -44,6 +45,16 @@ AIMove OpeningBook::selectMove(quint64 zobristKey)
     for (const BookEntry &entry : entries) {
         currentWeight += entry.weight;
         if (randomValue < currentWeight) {
+            // 安全检查：拒绝送炮的走法（炮纵向进攻2步或更多）
+            int rowDiff = qAbs(entry.move.toRow - entry.move.fromRow);
+            bool isCannonAdvance = (entry.move.fromCol == entry.move.toCol) && (rowDiff >= 2);
+
+            if (isCannonAdvance) {
+                qDebug() << "WARNING: 拒绝危险的炮进走法:" << entry.move.fromRow << entry.move.fromCol
+                         << "->" << entry.move.toRow << entry.move.toCol;
+                continue; // 跳过这个走法，选择下一个
+            }
+
             qDebug() << "使用开局库走法:" << entry.move.fromRow << entry.move.fromCol
                      << "->" << entry.move.toRow << entry.move.toCol
                      << "权重:" << entry.weight << "胜率:" << entry.winRate << "%";
@@ -51,7 +62,16 @@ AIMove OpeningBook::selectMove(quint64 zobristKey)
         }
     }
 
-    return entries.first().move;
+    // 如果所有走法都被拒绝，返回第一个非危险走法
+    for (const BookEntry &entry : entries) {
+        int rowDiff = qAbs(entry.move.toRow - entry.move.fromRow);
+        bool isCannonAdvance = (entry.move.fromCol == entry.move.toCol) && (rowDiff >= 2);
+        if (!isCannonAdvance) {
+            return entry.move;
+        }
+    }
+
+    return AIMove(); // 如果所有走法都危险，返回无效走法让搜索引擎处理
 }
 
 void OpeningBook::addMove(quint64 zobristKey, const AIMove &move, int weight, int winRate)

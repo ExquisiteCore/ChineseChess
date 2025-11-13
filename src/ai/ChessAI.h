@@ -7,6 +7,8 @@
 #include "Evaluator.h"
 #include "MoveOrderer.h"
 #include "SearchEngine.h"
+#include "OpeningBook.h"
+#include "EndgameTablebase.h"
 #include <QObject>
 #include <memory>
 
@@ -18,7 +20,7 @@ enum class AIDifficulty {
     Expert = 4     // 搜索深度 5
 };
 
-// 中国象棋AI引擎（主控制器）
+// 中国象棋AI引擎（主控制器 - 增强版）
 class ChessAI : public QObject
 {
     Q_OBJECT
@@ -39,6 +41,25 @@ public:
     int getPruneCount() const;
     void resetStatistics();
 
+    // === 高级功能配置 ===
+
+    // 开局库
+    void setOpeningBookEnabled(bool enabled);
+    bool isOpeningBookEnabled() const;
+    bool loadOpeningBook(const QString &filename);
+
+    // 残局库
+    void setEndgameTablebaseEnabled(bool enabled);
+    bool isEndgameTablebaseEnabled() const;
+
+    // 迭代加深
+    void setIterativeDeepeningEnabled(bool enabled);
+    bool isIterativeDeepeningEnabled() const;
+
+    // 高级评估
+    void setAdvancedEvaluationEnabled(bool enabled);
+    bool isAdvancedEvaluationEnabled() const;
+
 signals:
     void searchProgress(int depth, int nodes);
     void moveFound(int fromRow, int fromCol, int toRow, int toCol, int score);
@@ -53,6 +74,8 @@ private:
     std::unique_ptr<Evaluator> m_evaluator;
     std::unique_ptr<MoveOrderer> m_moveOrderer;
     std::unique_ptr<SearchEngine> m_searchEngine;
+    std::unique_ptr<OpeningBook> m_openingBook;
+    std::unique_ptr<EndgameTablebase> m_endgameTablebase;
 };
 
 #endif // CHESSAI_H

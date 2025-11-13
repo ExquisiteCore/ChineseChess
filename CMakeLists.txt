@@ -33,7 +33,7 @@ qt_add_executable(appChineseChess
     src/core/ChessRules.cpp
     src/core/GameController.h
     src/core/GameController.cpp
-    # AI引擎（模块化）
+    # AI引擎（模块化 + 增强功能）
     src/ai/TranspositionTable.h
     src/ai/TranspositionTable.cpp
     src/ai/Evaluator.h
@@ -42,6 +42,10 @@ qt_add_executable(appChineseChess
     src/ai/MoveOrderer.cpp
     src/ai/SearchEngine.h
     src/ai/SearchEngine.cpp
+    src/ai/OpeningBook.h
+    src/ai/OpeningBook.cpp
+    src/ai/EndgameTablebase.h
+    src/ai/EndgameTablebase.cpp
     src/ai/ChessAI.h
     src/ai/ChessAI.cpp
     # QML 适配层

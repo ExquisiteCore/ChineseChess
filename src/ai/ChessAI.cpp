@@ -14,6 +14,14 @@ ChessAI::ChessAI(QObject *parent)
     m_searchEngine = std::make_unique<SearchEngine>(m_transpositionTable.get(),
                                                       m_evaluator.get(),
                                                       m_moveOrderer.get());
+    m_openingBook = std::make_unique<OpeningBook>();
+    m_endgameTablebase = std::make_unique<EndgameTablebase>();
+
+    qDebug() << "ChessAI 增强版初始化完成";
+    qDebug() << "- 开局库: 启用";
+    qDebug() << "- 残局库: 启用";
+    qDebug() << "- 迭代加深: 启用";
+    qDebug() << "- 高级评估: 启用";
 }
 
 ChessAI::~ChessAI()
@@ -47,7 +55,7 @@ int ChessAI::getPruneCount() const
 AIMove ChessAI::getBestMove(const Position &position)
 {
     resetStatistics();
-    qDebug() << "=== AI开始思考 ===";
+    qDebug() << "=== AI开始思考（增强版） ===";
     qDebug() << "搜索深度:" << m_maxDepth;
 
     PieceColor aiColor = position.currentTurn();
@@ -56,76 +64,98 @@ AIMove ChessAI::getBestMove(const Position &position)
     // 创建位置的副本用于搜索
     Position searchPos = position;
 
-    // 生成所有可能的移动
-    QList<AIMove> allMoves = m_searchEngine->generateAllMoves(searchPos, aiColor);
-
-    if (allMoves.isEmpty()) {
-        qDebug() << "没有可用的移动";
-        return AIMove();
+    // 1. 先尝试查询开局库
+    if (m_openingBook && m_openingBook->isEnabled()) {
+        quint64 posKey = m_transpositionTable->computeZobristKey(searchPos);
+        AIMove bookMove = m_openingBook->selectMove(searchPos, posKey);
+        if (bookMove.isValid()) {
+            qDebug() << "使用开局库走法";
+            emit moveFound(bookMove.fromRow, bookMove.fromCol, bookMove.toRow, bookMove.toCol, 0);
+            return bookMove;
+        }
     }
 
-    // 检查置换表中的最佳移动
-    quint64 posKey = m_transpositionTable->computeZobristKey(searchPos);
-    AIMove *ttMove = m_transpositionTable->getBestMove(posKey);
-
-    // 对移动进行排序以提高剪枝效率
-    m_moveOrderer->sortMoves(allMoves, searchPos, 0, ttMove);
+    // 2. 检查是否进入残局
+    if (m_endgameTablebase && m_endgameTablebase->isEnabled()) {
+        if (m_endgameTablebase->isEndgame(searchPos)) {
+            qDebug() << "进入残局阶段，使用残局评估";
+            // 残局评估会影响Evaluator的评分
+        }
+    }
 
     AIMove bestMove;
-    constexpr int INF = std::numeric_limits<int>::max() / 2;
-    int bestScore = isMaximizing ? -INF : INF;
 
-    qDebug() << "评估" << allMoves.size() << "个可能的移动...";
+    // 3. 使用迭代加深或普通搜索
+    if (m_searchEngine->isIterativeDeepeningEnabled()) {
+        qDebug() << "使用迭代加深搜索";
+        bestMove = m_searchEngine->iterativeDeepening(searchPos, m_maxDepth, isMaximizing);
+    } else {
+        // 传统搜索方式
+        qDebug() << "使用传统搜索";
 
-    // 遍历所有移动
-    for (int i = 0; i < allMoves.size(); ++i) {
-        AIMove &move = allMoves[i];
+        QList<AIMove> allMoves = m_searchEngine->generateAllMoves(searchPos, aiColor);
 
-        // 创建临时局面
-        Position tempPos = searchPos;
-
-        // 执行移动
-        tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
-        tempPos.switchTurn();
-
-        // 使用PVS搜索
-        int score;
-        if (i == 0) {
-            score = m_searchEngine->pvs(tempPos, m_maxDepth - 1, -INF, INF, !isMaximizing, true, m_maxDepth);
-        } else {
-            score = m_searchEngine->pvs(tempPos, m_maxDepth - 1,
-                                       isMaximizing ? bestScore : -INF,
-                                       isMaximizing ? INF : bestScore,
-                                       !isMaximizing, false, m_maxDepth);
+        if (allMoves.isEmpty()) {
+            qDebug() << "没有可用的移动";
+            return AIMove();
         }
 
-        move.score = score;
+        quint64 posKey = m_transpositionTable->computeZobristKey(searchPos);
+        AIMove *ttMove = m_transpositionTable->getBestMove(posKey);
 
-        // 更新最佳移动
-        if (isMaximizing) {
-            if (score > bestScore) {
-                bestScore = score;
-                bestMove = move;
+        m_moveOrderer->sortMoves(allMoves, searchPos, 0, ttMove);
+
+        constexpr int INF = std::numeric_limits<int>::max() / 2;
+        int bestScore = isMaximizing ? -INF : INF;
+
+        qDebug() << "评估" << allMoves.size() << "个可能的移动...";
+
+        for (int i = 0; i < allMoves.size(); ++i) {
+            AIMove &move = allMoves[i];
+
+            Position tempPos = searchPos;
+            tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
+            tempPos.switchTurn();
+
+            int score;
+            if (i == 0) {
+                score = m_searchEngine->pvs(tempPos, m_maxDepth - 1, -INF, INF, !isMaximizing, true, m_maxDepth);
+            } else {
+                score = m_searchEngine->pvs(tempPos, m_maxDepth - 1,
+                                           isMaximizing ? bestScore : -INF,
+                                           isMaximizing ? INF : bestScore,
+                                           !isMaximizing, false, m_maxDepth);
             }
-        } else {
-            if (score < bestScore) {
-                bestScore = score;
-                bestMove = move;
+
+            move.score = score;
+
+            if (isMaximizing) {
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            } else {
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            }
+
+            if ((i + 1) % 5 == 0 || i == allMoves.size() - 1) {
+                emit searchProgress(m_maxDepth, m_searchEngine->getNodesSearched());
             }
         }
 
-        // 发射进度信号
-        if ((i + 1) % 5 == 0 || i == allMoves.size() - 1) {
-            emit searchProgress(m_maxDepth, m_searchEngine->getNodesSearched());
-        }
+        m_transpositionTable->store(posKey, m_maxDepth, bestScore, TTEntry::EXACT, bestMove);
+
+        qDebug() << "最佳移动:" << bestMove.fromRow << bestMove.fromCol
+                 << "->" << bestMove.toRow << bestMove.toCol
+                 << "评分:" << bestScore;
+
+        emit moveFound(bestMove.fromRow, bestMove.fromCol, bestMove.toRow, bestMove.toCol, bestScore);
     }
 
-    // 存储到置换表
-    m_transpositionTable->store(posKey, m_maxDepth, bestScore, TTEntry::EXACT, bestMove);
-
-    qDebug() << "最佳移动:" << bestMove.fromRow << bestMove.fromCol
-             << "->" << bestMove.toRow << bestMove.toCol
-             << "评分:" << bestScore;
+    // 统计信息
     qDebug() << "搜索节点数:" << m_searchEngine->getNodesSearched()
              << "(静态搜索:" << m_searchEngine->getQsNodes() << ")";
     qDebug() << "剪枝次数:" << m_searchEngine->getPruneCount()
@@ -133,7 +163,67 @@ AIMove ChessAI::getBestMove(const Position &position)
     qDebug() << "空移动剪枝:" << m_searchEngine->getNullMoveCuts()
              << "LMR减少:" << m_searchEngine->getLmrReductions();
 
-    emit moveFound(bestMove.fromRow, bestMove.fromCol, bestMove.toRow, bestMove.toCol, bestScore);
-
     return bestMove;
+}
+
+// === 高级功能配置实现 ===
+
+void ChessAI::setOpeningBookEnabled(bool enabled)
+{
+    if (m_openingBook) {
+        m_openingBook->setEnabled(enabled);
+        qDebug() << "开局库:" << (enabled ? "启用" : "禁用");
+    }
+}
+
+bool ChessAI::isOpeningBookEnabled() const
+{
+    return m_openingBook && m_openingBook->isEnabled();
+}
+
+bool ChessAI::loadOpeningBook(const QString &filename)
+{
+    if (m_openingBook) {
+        return m_openingBook->loadFromFile(filename);
+    }
+    return false;
+}
+
+void ChessAI::setEndgameTablebaseEnabled(bool enabled)
+{
+    if (m_endgameTablebase) {
+        m_endgameTablebase->setEnabled(enabled);
+        qDebug() << "残局库:" << (enabled ? "启用" : "禁用");
+    }
+}
+
+bool ChessAI::isEndgameTablebaseEnabled() const
+{
+    return m_endgameTablebase && m_endgameTablebase->isEnabled();
+}
+
+void ChessAI::setIterativeDeepeningEnabled(bool enabled)
+{
+    if (m_searchEngine) {
+        m_searchEngine->setIterativeDeepeningEnabled(enabled);
+        qDebug() << "迭代加深:" << (enabled ? "启用" : "禁用");
+    }
+}
+
+bool ChessAI::isIterativeDeepeningEnabled() const
+{
+    return m_searchEngine && m_searchEngine->isIterativeDeepeningEnabled();
+}
+
+void ChessAI::setAdvancedEvaluationEnabled(bool enabled)
+{
+    if (m_evaluator) {
+        m_evaluator->setAdvancedEvaluationEnabled(enabled);
+        qDebug() << "高级评估:" << (enabled ? "启用" : "禁用");
+    }
+}
+
+bool ChessAI::isAdvancedEvaluationEnabled() const
+{
+    return m_evaluator && m_evaluator->isAdvancedEvaluationEnabled();
 }

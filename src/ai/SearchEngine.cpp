@@ -1,5 +1,6 @@
 #include "SearchEngine.h"
 #include <algorithm>
+#include <QDebug>
 
 SearchEngine::SearchEngine(TranspositionTable *tt, Evaluator *evaluator, MoveOrderer *orderer)
     : m_transpositionTable(tt)
@@ -10,6 +11,8 @@ SearchEngine::SearchEngine(TranspositionTable *tt, Evaluator *evaluator, MoveOrd
     , m_qsNodes(0)
     , m_nullMoveCuts(0)
     , m_lmrReductions(0)
+    , m_currentDepth(0)
+    , m_useIterativeDeepening(true)
 {
 }
 
@@ -20,6 +23,89 @@ void SearchEngine::resetStatistics()
     m_qsNodes = 0;
     m_nullMoveCuts = 0;
     m_lmrReductions = 0;
+    m_currentDepth = 0;
+}
+
+// 迭代加深搜索
+AIMove SearchEngine::iterativeDeepening(Position &position, int maxDepth, bool isMaximizing, AIMove *bestMoveOut)
+{
+    AIMove bestMove;
+    int bestScore = isMaximizing ? -INF : INF;
+
+    qDebug() << "=== 迭代加深搜索开始 ===";
+
+    // 从深度1开始逐步加深
+    for (int depth = 1; depth <= maxDepth; ++depth) {
+        m_currentDepth = depth;
+        qDebug() << "搜索深度" << depth << "...";
+
+        // 生成所有可能的移动
+        PieceColor currentColor = position.currentTurn();
+        QList<AIMove> moves = generateAllMoves(position, currentColor);
+
+        if (moves.isEmpty()) {
+            break;
+        }
+
+        // 使用上一层的最佳移动进行排序
+        quint64 posKey = m_transpositionTable->computeZobristKey(position);
+        AIMove *ttMove = m_transpositionTable->getBestMove(posKey);
+        m_moveOrderer->sortMoves(moves, position, 0, ttMove);
+
+        AIMove currentBestMove;
+        int currentBestScore = isMaximizing ? -INF : INF;
+
+        for (int i = 0; i < moves.size(); ++i) {
+            AIMove &move = moves[i];
+
+            Position tempPos = position;
+            tempPos.board().movePiece(move.fromRow, move.fromCol, move.toRow, move.toCol);
+            tempPos.switchTurn();
+
+            int score;
+            if (i == 0) {
+                score = pvs(tempPos, depth - 1, -INF, INF, !isMaximizing, true, depth);
+            } else {
+                score = pvs(tempPos, depth - 1,
+                           isMaximizing ? currentBestScore : -INF,
+                           isMaximizing ? INF : currentBestScore,
+                           !isMaximizing, false, depth);
+            }
+
+            if (isMaximizing) {
+                if (score > currentBestScore) {
+                    currentBestScore = score;
+                    currentBestMove = move;
+                }
+            } else {
+                if (score < currentBestScore) {
+                    currentBestScore = score;
+                    currentBestMove = move;
+                }
+            }
+        }
+
+        // 更新最佳移动
+        if (currentBestMove.isValid()) {
+            bestMove = currentBestMove;
+            bestScore = currentBestScore;
+
+            qDebug() << "深度" << depth << "最佳移动:"
+                     << bestMove.fromRow << bestMove.fromCol << "->"
+                     << bestMove.toRow << bestMove.toCol
+                     << "评分:" << bestScore;
+
+            // 存储到置换表
+            m_transpositionTable->store(posKey, depth, bestScore, TTEntry::EXACT, bestMove);
+        }
+    }
+
+    if (bestMoveOut) {
+        *bestMoveOut = bestMove;
+    }
+
+    qDebug() << "=== 迭代加深搜索完成 ===";
+    return bestMove;
 }
 
 int SearchEngine::pvs(Position &position, int depth, int alpha, int beta, bool isMaximizing, bool isPV, int maxDepth)

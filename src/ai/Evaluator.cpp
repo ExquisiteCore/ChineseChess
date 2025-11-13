@@ -3,12 +3,17 @@
 #include <algorithm>
 
 Evaluator::Evaluator()
+    : m_useAdvancedEval(true)
 {
 }
 
 int Evaluator::evaluatePosition(const Position &position)
 {
-    return evaluatePositionFast(position);
+    if (m_useAdvancedEval) {
+        return evaluatePositionFull(position);
+    } else {
+        return evaluatePositionFast(position);
+    }
 }
 
 int Evaluator::evaluatePositionFast(const Position &position)
@@ -192,4 +197,298 @@ const int Evaluator::KING_POS_VALUE[10][9] = {
     { 0,  0,  0,  0,  0,  0,  0,  0,  0},
     { 0,  0,  0,  0,  0,  0,  0,  0,  0},
     { 0,  0,  0,  0,  0,  0,  0,  0,  0}
+};
+
+// === 高级评估函数实现 ===
+
+int Evaluator::evaluatePositionFull(const Position &position)
+{
+    int score = 0;
+
+    // 基础评估（材料+位置）
+    score += evaluatePositionFast(position);
+
+    // 高级评估因素
+    score += evaluateMobility(position);
+    score += evaluateControl(position);
+    score += evaluateProtection(position);
+    score += evaluateKingSafety(position);
+    score += evaluatePatterns(position);
+
+    return score;
+}
+
+int Evaluator::evaluateMobility(const Position &position)
+{
+    const Board &board = position.board();
+    int redMobility = 0, blackMobility = 0;
+
+    // 计算每个棋子的合法移动数
+    for (int row = 0; row < Board::ROWS; ++row) {
+        for (int col = 0; col < Board::COLS; ++col) {
+            const ChessPiece *piece = board.pieceAt(row, col);
+            if (piece && piece->isValid()) {
+                QList<QPoint> moves = ChessRules::getLegalMoves(board, row, col);
+                int mobility = moves.size();
+
+                // 根据棋子类型调整权重
+                int weight = 1;
+                if (piece->type() == PieceType::Rook) {
+                    weight = 3;  // 车的灵活性最重要
+                } else if (piece->type() == PieceType::Horse || piece->type() == PieceType::Cannon) {
+                    weight = 2;  // 马炮次之
+                }
+
+                if (piece->color() == PieceColor::Red) {
+                    redMobility += mobility * weight;
+                } else {
+                    blackMobility += mobility * weight;
+                }
+            }
+        }
+    }
+
+    return (redMobility - blackMobility) * 2;  // 灵活性权重系数
+}
+
+int Evaluator::evaluateControl(const Position &position)
+{
+    const Board &board = position.board();
+    int redControl = 0, blackControl = 0;
+
+    // 评估对关键格子的控制
+    for (int row = 0; row < Board::ROWS; ++row) {
+        for (int col = 0; col < Board::COLS; ++col) {
+            if (!isKeySquare(row, col)) {
+                continue;
+            }
+
+            // 计算攻击这个格子的双方棋子数
+            int redAttackers = countAttackers(board, row, col, PieceColor::Red);
+            int blackAttackers = countAttackers(board, row, col, PieceColor::Black);
+
+            redControl += redAttackers;
+            blackControl += blackAttackers;
+        }
+    }
+
+    return (redControl - blackControl) * 3;  // 控制力权重系数
+}
+
+int Evaluator::evaluateProtection(const Position &position)
+{
+    const Board &board = position.board();
+    int score = 0;
+
+    // 评估每个棋子的保护情况
+    for (int row = 0; row < Board::ROWS; ++row) {
+        for (int col = 0; col < Board::COLS; ++col) {
+            const ChessPiece *piece = board.pieceAt(row, col);
+            if (!piece || !piece->isValid()) {
+                continue;
+            }
+
+            int defenders = countDefenders(board, row, col, piece->color());
+            int attackers = countAttackers(board, row, col,
+                                          piece->color() == PieceColor::Red ? PieceColor::Black : PieceColor::Red);
+
+            // 如果被攻击且无保护，扣分
+            if (attackers > 0 && defenders == 0) {
+                int penalty = getPieceBaseValue(piece->type()) / 10;
+                if (piece->color() == PieceColor::Red) {
+                    score -= penalty;
+                } else {
+                    score += penalty;
+                }
+            }
+            // 如果有保护，加分
+            else if (defenders > attackers) {
+                int bonus = 5 * (defenders - attackers);
+                if (piece->color() == PieceColor::Red) {
+                    score += bonus;
+                } else {
+                    score -= bonus;
+                }
+            }
+        }
+    }
+
+    return score;
+}
+
+int Evaluator::evaluateKingSafety(const Position &position)
+{
+    const Board &board = position.board();
+    int score = 0;
+
+    // 找到双方的将帅
+    int redKingRow = -1, redKingCol = -1;
+    int blackKingRow = -1, blackKingCol = -1;
+
+    for (int row = 0; row < Board::ROWS; ++row) {
+        for (int col = 0; col < Board::COLS; ++col) {
+            const ChessPiece *piece = board.pieceAt(row, col);
+            if (piece && piece->isValid() && piece->type() == PieceType::King) {
+                if (piece->color() == PieceColor::Red) {
+                    redKingRow = row;
+                    redKingCol = col;
+                } else {
+                    blackKingRow = row;
+                    blackKingCol = col;
+                }
+            }
+        }
+    }
+
+    // 评估红方将帅安全
+    if (redKingRow >= 0) {
+        int defenders = countDefenders(board, redKingRow, redKingCol, PieceColor::Red);
+        int attackers = countAttackers(board, redKingRow, redKingCol, PieceColor::Black);
+
+        score += defenders * 10;
+        score -= attackers * 15;
+
+        // 九宫完整性（士象齐全更安全）
+        int advisors = 0, elephants = 0;
+        for (int row = 7; row < 10; ++row) {
+            for (int col = 3; col <= 5; ++col) {
+                const ChessPiece *piece = board.pieceAt(row, col);
+                if (piece && piece->isValid() && piece->color() == PieceColor::Red) {
+                    if (piece->type() == PieceType::Advisor) advisors++;
+                    if (piece->type() == PieceType::Elephant) elephants++;
+                }
+            }
+        }
+        score += advisors * 8 + elephants * 6;
+    }
+
+    // 评估黑方将帅安全
+    if (blackKingRow >= 0) {
+        int defenders = countDefenders(board, blackKingRow, blackKingCol, PieceColor::Black);
+        int attackers = countAttackers(board, blackKingRow, blackKingCol, PieceColor::Red);
+
+        score -= defenders * 10;
+        score += attackers * 15;
+
+        int advisors = 0, elephants = 0;
+        for (int row = 0; row < 3; ++row) {
+            for (int col = 3; col <= 5; ++col) {
+                const ChessPiece *piece = board.pieceAt(row, col);
+                if (piece && piece->isValid() && piece->color() == PieceColor::Black) {
+                    if (piece->type() == PieceType::Advisor) advisors++;
+                    if (piece->type() == PieceType::Elephant) elephants++;
+                }
+            }
+        }
+        score -= advisors * 8 + elephants * 6;
+    }
+
+    return score;
+}
+
+int Evaluator::evaluatePatterns(const Position &position)
+{
+    const Board &board = position.board();
+    int score = 0;
+
+    // 识别特殊棋型（马后炮、重炮等）
+    for (int row = 0; row < Board::ROWS; ++row) {
+        for (int col = 0; col < Board::COLS; ++col) {
+            const ChessPiece *piece = board.pieceAt(row, col);
+            if (!piece || !piece->isValid()) {
+                continue;
+            }
+
+            // 马后炮：炮在马后面
+            if (piece->type() == PieceType::Cannon) {
+                // 检查炮前方是否有己方马
+                int direction = (piece->color() == PieceColor::Red) ? -1 : 1;
+                for (int r = row + direction; r >= 0 && r < Board::ROWS; r += direction) {
+                    const ChessPiece *front = board.pieceAt(r, col);
+                    if (front && front->isValid()) {
+                        if (front->color() == piece->color() && front->type() == PieceType::Horse) {
+                            int bonus = 30;
+                            if (piece->color() == PieceColor::Red) {
+                                score += bonus;
+                            } else {
+                                score -= bonus;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // 双车联动
+            if (piece->type() == PieceType::Rook) {
+                // 检查同一行或列是否有另一个己方车
+                for (int c = 0; c < Board::COLS; ++c) {
+                    if (c == col) continue;
+                    const ChessPiece *other = board.pieceAt(row, c);
+                    if (other && other->isValid() &&
+                        other->color() == piece->color() &&
+                        other->type() == PieceType::Rook) {
+                        int bonus = 40;
+                        if (piece->color() == PieceColor::Red) {
+                            score += bonus;
+                        } else {
+                            score -= bonus;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return score;
+}
+
+int Evaluator::countAttackers(const Board &board, int row, int col, PieceColor attackColor)
+{
+    int count = 0;
+
+    // 检查所有敌方棋子是否能攻击到这个位置
+    for (int r = 0; r < Board::ROWS; ++r) {
+        for (int c = 0; c < Board::COLS; ++c) {
+            const ChessPiece *piece = board.pieceAt(r, c);
+            if (!piece || !piece->isValid() || piece->color() != attackColor) {
+                continue;
+            }
+
+            QList<QPoint> moves = ChessRules::getLegalMoves(board, r, c);
+            for (const QPoint &move : moves) {
+                if (move.y() == row && move.x() == col) {
+                    count++;
+                    break;
+                }
+            }
+        }
+    }
+
+    return count;
+}
+
+int Evaluator::countDefenders(const Board &board, int row, int col, PieceColor defendColor)
+{
+    return countAttackers(board, row, col, defendColor);
+}
+
+bool Evaluator::isKeySquare(int row, int col)
+{
+    return KEY_SQUARES[row][col];
+}
+
+// 关键格子定义
+const bool Evaluator::KEY_SQUARES[10][9] = {
+    {0, 0, 0, 1, 1, 1, 0, 0, 0},  // 黑方九宫
+    {0, 0, 0, 1, 1, 1, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0},
+    {0, 1, 0, 0, 0, 0, 0, 1, 0},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1},  // 河界
+    {1, 1, 1, 1, 1, 1, 1, 1, 1},  // 河界
+    {0, 1, 0, 0, 0, 0, 0, 1, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0},  // 红方九宫
+    {0, 0, 0, 1, 1, 1, 0, 0, 0},
+    {0, 0, 0, 1, 1, 1, 0, 0, 0}
 };

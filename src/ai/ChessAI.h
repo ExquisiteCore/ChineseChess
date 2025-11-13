@@ -14,10 +14,10 @@
 
 // AI难度级别
 enum class AIDifficulty {
-    Easy = 1,      // 搜索深度 2
-    Medium = 2,    // 搜索深度 3
-    Hard = 3,      // 搜索深度 4
-    Expert = 4     // 搜索深度 5
+    Easy = 2,      // 搜索深度 3
+    Medium = 3,    // 搜索深度 4
+    Hard = 4,      // 搜索深度 5
+    Expert = 5     // 搜索深度 6
 };
 
 // 中国象棋AI引擎（主控制器 - 增强版）

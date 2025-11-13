@@ -13,16 +13,21 @@ OpeningBook::OpeningBook(TranspositionTable *tt)
 AIMove OpeningBook::selectMove(quint64 zobristKey)
 {
     if (!m_enabled) {
+        qDebug() << "[开局库] 已禁用";
         return AIMove();
     }
 
     // 查询开局库
     if (!m_book.contains(zobristKey)) {
+        qDebug() << "[开局库] 当前局面不在开局库中, key =" << zobristKey;
         return AIMove(); // 不在开局库中
     }
 
+    qDebug() << "[开局库] 找到开局库条目, key =" << zobristKey;
+
     QList<BookEntry> entries = m_book[zobristKey];
     if (entries.isEmpty()) {
+        qDebug() << "[开局库] 条目列表为空";
         return AIMove();
     }
 
@@ -95,6 +100,10 @@ void OpeningBook::initializeCommonOpenings()
     addMove(initKey, AIMove(2, 1, 2, 5), 60, 50);  // 炮二平六
     addMove(initKey, AIMove(2, 7, 2, 3), 60, 50);  // 炮八平四（镜像）
 
+    // 6. 士角炮
+    addMove(initKey, AIMove(2, 1, 2, 3), 55, 49);  // 炮二平四
+    addMove(initKey, AIMove(2, 7, 2, 5), 55, 49);  // 炮八平六（镜像）
+
     // ========== 应对中炮（炮二平五后的局面） ==========
 
     Position afterCenterCannon = initialPos;
@@ -112,9 +121,8 @@ void OpeningBook::initializeCommonOpenings()
     // 3. 飞象局 - 象7进5
     addSymmetricMoves(afterCenterCannon, AIMove(9, 6, 7, 4), 80, 50);  // 象7进5
 
-    // 4. 卒底炮 - 炮2进4（激进）
-    addMove(afterCenterCannonKey, AIMove(7, 1, 3, 1), 70, 51);  // 炮2进4
-    addMove(afterCenterCannonKey, AIMove(7, 7, 3, 7), 70, 51);  // 炮8进4（镜像）
+    // 4. 进卒 - 卒7进1
+    addSymmetricMoves(afterCenterCannon, AIMove(6, 6, 5, 6), 75, 50);  // 卒7进1
 
     // ========== 应对起马（马二进三后的局面） ==========
 
@@ -134,6 +142,23 @@ void OpeningBook::initializeCommonOpenings()
     addMove(afterHorseMoveKey, AIMove(7, 7, 7, 5), 85, 50);  // 炮8平6
     addMove(afterHorseMoveKey, AIMove(7, 1, 7, 3), 85, 50);  // 炮2平4（镜像）
 
+    // ========== 应对仙人指路（兵三进一后的局面） ==========
+
+    Position afterPawnMove = initialPos;
+    afterPawnMove.board().movePiece(3, 2, 4, 2);
+    afterPawnMove.switchTurn();
+    quint64 afterPawnMoveKey = m_transpositionTable->computeZobristKey(afterPawnMove);
+
+    // 黑方应对：
+    // 1. 对进卒 - 卒7进1
+    addSymmetricMoves(afterPawnMove, AIMove(6, 6, 5, 6), 100, 51);  // 卒7进1
+
+    // 2. 飞象 - 象7进5
+    addSymmetricMoves(afterPawnMove, AIMove(9, 6, 7, 4), 90, 50);   // 象7进5
+
+    // 3. 起马 - 马8进7
+    addSymmetricMoves(afterPawnMove, AIMove(9, 7, 7, 6), 85, 50);   // 马8进7
+
     // ========== 中炮对屏风马（经典对局） ==========
 
     Position centerCannonVsScreen = afterCenterCannon;
@@ -150,6 +175,9 @@ void OpeningBook::initializeCommonOpenings()
 
     // 3. 车一平二（快速出车）
     addSymmetricMoves(centerCannonVsScreen, AIMove(0, 0, 0, 1), 85, 51);   // 车一平二
+
+    // 4. 兵七进一
+    addSymmetricMoves(centerCannonVsScreen, AIMove(3, 6, 4, 6), 80, 50);   // 兵七进一
 
     qDebug() << "开局库初始化完成："
              << m_book.size() << "个局面";

@@ -13,7 +13,14 @@ ChessBoardModel::ChessBoardModel(QObject *parent)
     , m_aiThinking(false)
     , m_isTwoPlayerMode(false)
     , m_boardRotation(0)
+    , m_databaseManager(this)
+    , m_currentGameMode("single")
 {
+    // 初始化数据库
+    if (!m_databaseManager.initialize()) {
+        qWarning() << "数据库初始化失败，存档功能将不可用";
+    }
+
     // 初始化为开局局面
     m_position.board().initializeStartPosition();
     rebuildPiecesList();
@@ -215,6 +222,9 @@ bool ChessBoardModel::movePieceToPosition(int fromIndex, int toRow, int toCol)
     if (m_aiEnabled && !isRedTurn()) {
         triggerAIMove();
     }
+
+    // 每次移动后自动保存
+    performAutoSave();
 
     return true;
 }
@@ -485,7 +495,10 @@ void ChessBoardModel::startNewGame()
     emit canRedoChanged();
     emit moveCountChanged();
 
-    qDebug() << "开始新游戏";
+    // 更新游戏模式
+    m_currentGameMode = m_isTwoPlayerMode ? "two" : "single";
+
+    qDebug() << "开始新游戏，模式：" << m_currentGameMode;
 }
 
 QString ChessBoardModel::saveGame() const
@@ -733,6 +746,9 @@ void ChessBoardModel::onAIFinished()
     // 检查游戏状态
     checkGameStatus();
 
+    // AI走棋后自动保存
+    performAutoSave();
+
     qDebug() << "AI走棋完成";
 }
 
@@ -790,3 +806,72 @@ void ChessBoardModel::updateModelAfterMove(int fromRow, int fromCol, int toRow, 
     // 双人模式下旋转棋盘
     rotateBoardIfNeeded();
 }
+
+// ==================== 存档功能实现 ====================
+
+bool ChessBoardModel::hasAutoSave() const
+{
+    return m_databaseManager.hasAutoSave();
+}
+
+bool ChessBoardModel::loadAutoSave()
+{
+    GameSave save = m_databaseManager.loadAutoSave();
+
+    if (save.id == 0) {
+        qWarning() << "没有找到自动存档";
+        return false;
+    }
+
+    // 加载FEN字符串
+    if (!loadFromFen(save.fenString)) {
+        qWarning() << "加载存档失败：无效的FEN字符串";
+        return false;
+    }
+
+    // 恢复游戏模式
+    m_currentGameMode = save.gameMode;
+    setIsTwoPlayerMode(save.gameMode == "two");
+
+    // 恢复回合
+    setIsRedTurn(save.isRedTurn);
+
+    qDebug() << "成功加载自动存档，步数：" << save.moveCount;
+    return true;
+}
+
+void ChessBoardModel::triggerAutoSave()
+{
+    performAutoSave();
+}
+
+void ChessBoardModel::performAutoSave()
+{
+    // 获取移动历史（简化为JSON格式）
+    QStringList history = moveHistory();
+    QString historyJson = "[";
+    for (int i = 0; i < history.size(); ++i) {
+        historyJson += "\"" + history[i] + "\"";
+        if (i < history.size() - 1) {
+            historyJson += ",";
+        }
+    }
+    historyJson += "]";
+
+    // 执行自动保存
+    bool success = m_databaseManager.autoSaveGame(
+        fenString(),
+        m_currentGameMode,
+        isRedTurn(),
+        moveCount(),
+        historyJson
+    );
+
+    if (success) {
+        qDebug() << "自动保存成功";
+        emit hasAutoSaveChanged();
+    } else {
+        qWarning() << "自动保存失败";
+    }
+}
+

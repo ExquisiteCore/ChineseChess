@@ -10,6 +10,7 @@
 #include "../core/ChessRules.h"
 #include "../core/GameController.h"
 #include "../ai/ChessAI.h"
+#include "../db/DatabaseManager.h"
 
 // 棋盘数据模型（适配层，连接 C++ 核心和 QML UI）
 class ChessBoardModel : public QAbstractListModel
@@ -29,6 +30,7 @@ class ChessBoardModel : public QAbstractListModel
     Q_PROPERTY(int aiDifficulty READ aiDifficulty WRITE setAiDifficulty NOTIFY aiDifficultyChanged)
     Q_PROPERTY(bool isTwoPlayerMode READ isTwoPlayerMode WRITE setIsTwoPlayerMode NOTIFY isTwoPlayerModeChanged)
     Q_PROPERTY(int boardRotation READ boardRotation NOTIFY boardRotationChanged)
+    Q_PROPERTY(bool hasAutoSave READ hasAutoSave NOTIFY hasAutoSaveChanged)
 
 public:
     enum ChessPieceRoles {
@@ -76,6 +78,8 @@ public:
 
     int boardRotation() const { return m_boardRotation; }
 
+    bool hasAutoSave() const;
+
     // 获取 Position 对象
     Position& position() { return m_position; }
     const Position& position() const { return m_position; }
@@ -103,6 +107,10 @@ public:
     Q_INVOKABLE void declineDraw();   // 拒绝和棋
     Q_INVOKABLE void resign();        // 认输
 
+    // 存档功能
+    Q_INVOKABLE bool loadAutoSave();  // 加载自动存档
+    Q_INVOKABLE void triggerAutoSave(); // 手动触发自动存档
+
 signals:
     void isRedTurnChanged();
     void liftedPieceIndexChanged();
@@ -124,6 +132,7 @@ signals:
     void aiDifficultyChanged();              // AI难度改变
     void isTwoPlayerModeChanged();           // 双人模式状态改变
     void boardRotationChanged();             // 棋盘旋转角度改变
+    void hasAutoSaveChanged();               // 自动存档状态改变
 
     // 音效相关信号
     void pieceMoved(bool isCapture);         // 棋子移动信号（是否吃子）
@@ -137,6 +146,7 @@ private:
     void triggerAIMove();       // 触发AI走棋
     void executeAIMove();       // 执行AI走棋（在定时器中调用）
     void onAIFinished();        // AI思考完成的槽函数
+    void performAutoSave();     // 执行自动保存
 
     // 辅助方法
     bool canSelectPiece(int index) const;  // 检查是否可以选择棋子
@@ -158,6 +168,8 @@ private:
     int m_boardRotation;               // 棋盘旋转角度（0或180）
     QTimer *m_aiTimer;                 // AI延迟定时器（避免AI瞬间走棋）
     QFutureWatcher<AIMove> *m_aiWatcher; // AI异步任务监视器
+    DatabaseManager m_databaseManager; // 数据库管理器
+    QString m_currentGameMode;         // 当前游戏模式（single/two）
 };
 
 #endif // CHESSBOARDMODEL_H

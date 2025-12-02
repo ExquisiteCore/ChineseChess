@@ -49,6 +49,18 @@ Rectangle {
     Component.onCompleted: {
         console.log("GamePage loaded with gameMode:", gameMode)
 
+        // 检查是否有自动存档
+        if (chessBoardModel.hasAutoSave) {
+            // 显示对话框询问是否加载存档
+            loadSaveDialog.open()
+        } else {
+            // 没有存档，开始新游戏
+            startNewGameSession()
+        }
+    }
+
+    // 开始新游戏会话的函数
+    function startNewGameSession() {
         // 重置游戏为初始状态
         chessBoardModel.startNewGame()
 
@@ -61,6 +73,41 @@ Rectangle {
             console.log("AI enabled for single player mode")
         } else {
             console.log("Two player mode - AI disabled")
+        }
+    }
+
+    // 加载存档对话框
+    Dialog {
+        id: loadSaveDialog
+        title: "发现存档"
+        modal: true
+        anchors.centerIn: parent
+        standardButtons: Dialog.Yes | Dialog.No
+
+        contentItem: Text {
+            text: "检测到上次未完成的棋局，是否继续？"
+            font.pixelSize: 16
+            wrapMode: Text.WordWrap
+        }
+
+        onAccepted: {
+            // 加载自动存档
+            if (chessBoardModel.loadAutoSave()) {
+                console.log("成功加载存档")
+
+                // 根据存档恢复游戏模式
+                if (gameMode === "single") {
+                    chessBoardModel.aiEnabled = true
+                }
+            } else {
+                console.log("加载存档失败，开始新游戏")
+                startNewGameSession()
+            }
+        }
+
+        onRejected: {
+            // 开始新游戏
+            startNewGameSession()
         }
     }
 

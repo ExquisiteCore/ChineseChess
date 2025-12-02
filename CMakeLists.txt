@@ -5,6 +5,7 @@ project(ChineseChess VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(Qt6_DIR "C:/Code/QT/6.10.0/mingw_64/lib/cmake/Qt6")
 
 # Windows下设置UTF-8编码
 if(WIN32)
@@ -16,7 +17,7 @@ if(WIN32)
     endif()
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Quick Concurrent Multimedia Sql)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -51,6 +52,9 @@ qt_add_executable(appChineseChess
     # QML 适配层
     src/model/ChessBoardModel.h
     src/model/ChessBoardModel.cpp
+    # 数据库管理
+    src/db/DatabaseManager.h
+    src/db/DatabaseManager.cpp
 )
 
 qt_add_qml_module(appChineseChess
@@ -77,7 +81,7 @@ set_target_properties(appChineseChess PROPERTIES
 )
 
 target_link_libraries(appChineseChess
-    PRIVATE Qt6::Quick Qt6::Concurrent Qt6::Multimedia
+    PRIVATE Qt6::Quick Qt6::Concurrent Qt6::Multimedia Qt6::Sql
 )
 
 include(GNUInstallDirs)

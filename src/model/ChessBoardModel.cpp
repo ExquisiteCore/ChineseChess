@@ -1,5 +1,6 @@
 #include "ChessBoardModel.h"
 #include <QDebug>
+#include <QRandomGenerator>
 #include <QtConcurrent/QtConcurrent>
 
 ChessBoardModel::ChessBoardModel(QObject *parent)
@@ -335,7 +336,9 @@ void ChessBoardModel::checkGameStatus()
 
     // 检查将军
     if (ChessRules::isInCheck(m_position.board(), currentColor)) {
-        m_gameStatus = colorName + "被将军！";
+        // currentColor 是当前回合方（刚被走棋后的一方）
+        // 如果他被将军了，说明对方（刚走完棋的一方）将了他的军
+        m_gameStatus = opponentName + "将军！" + colorName + "被将军";
         qDebug() << m_gameStatus;
         emit checkDetected();  // 发射将军信号（用于音效）
         emit gameStatusChanged();
@@ -528,9 +531,50 @@ void ChessBoardModel::showHint()
 void ChessBoardModel::offerDraw()
 {
     QString colorName = isRedTurn() ? "红方" : "黑方";
-    QString message = colorName + "提出和棋";
+
+    // 在人机模式下，让AI决定
+    if (m_aiEnabled && !m_isTwoPlayerMode) {
+        // AI自动决定是否接受和棋
+        // 简单逻辑：如果局势对AI不利，接受和棋；否则拒绝
+        // 这里可以根据评估函数来决定
+        qDebug() << colorName << "提出和棋，AI正在考虑...";
+
+        // 简单策略：50%概率接受（实际应该基于局势评估）
+        bool aiAccepts = (QRandomGenerator::global()->bounded(2) == 0);
+
+        if (aiAccepts) {
+            QString message = "AI接受和棋";
+            emit drawOffered(message);
+
+            // 延迟一下再结束游戏，让玩家看到消息
+            QTimer::singleShot(1500, this, [this]() {
+                acceptDraw();
+            });
+        } else {
+            QString message = "AI拒绝和棋";
+            emit drawDeclined(message);
+        }
+    } else {
+        // 双人模式，发送请求让对方选择
+        qDebug() << colorName << "提出和棋";
+        emit drawRequested();
+    }
+}
+
+void ChessBoardModel::acceptDraw()
+{
+    m_gameStatus = "和棋 - 双方同意";
+    qDebug() << "游戏结束:" << m_gameStatus;
+    emit gameOver(m_gameStatus);
+    emit gameStatusChanged();
+}
+
+void ChessBoardModel::declineDraw()
+{
+    QString opponentName = isRedTurn() ? "黑方" : "红方";
+    QString message = opponentName + "拒绝和棋";
     qDebug() << message;
-    emit drawOffered(message);
+    emit drawDeclined(message);
 }
 
 void ChessBoardModel::resign()
@@ -666,9 +710,13 @@ void ChessBoardModel::onAIFinished()
     const ChessPiece *movedPiece = m_position.board().pieceAt(fromRow, fromCol);
     const ChessPiece *targetPiece = m_position.board().pieceAt(toRow, toCol);
     QString capturedPiece = targetPiece ? targetPiece->chineseName() : "";
+    bool isCapture = (targetPiece != nullptr);  // 记录是否吃子
 
     // 执行移动
     m_position.board().movePiece(fromRow, fromCol, toRow, toCol);
+
+    // 发射棋子移动信号（用于音效）
+    emit pieceMoved(isCapture);
 
     // 切换回合
     m_position.switchTurn();

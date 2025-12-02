@@ -33,6 +33,10 @@ Rectangle {
         // 将军信号
         function onCheckDetected() {
             soundManager.playSound(SoundManager.SoundType.Check)
+            // 显示将军提示
+            checkNotification.text = chessBoardModel.gameStatus
+            checkNotification.visible = true
+            checkNotificationTimer.restart()
         }
 
         // 将死信号
@@ -853,6 +857,67 @@ Rectangle {
             drawNotification.visible = true
             drawNotificationTimer.restart()
         }
+
+        function onDrawRequested() {
+            // 显示和棋请求对话框
+            drawRequestDialog.visible = true
+        }
+
+        function onDrawDeclined(message) {
+            drawNotification.text = message
+            drawNotification.visible = true
+            drawNotificationTimer.restart()
+        }
+    }
+
+    // 将军通知
+    Rectangle {
+        id: checkNotification
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: topBar.bottom
+        anchors.topMargin: 20
+        width: 400
+        height: 80
+        color: "#ff6b6b"
+        radius: 15
+        border.color: "#c92a2a"
+        border.width: 3
+        visible: false
+        z: 150
+
+        property alias text: checkNotificationText.text
+
+        // 闪烁动画
+        SequentialAnimation on opacity {
+            running: checkNotification.visible
+            loops: 3
+            NumberAnimation { from: 1.0; to: 0.5; duration: 200 }
+            NumberAnimation { from: 0.5; to: 1.0; duration: 200 }
+        }
+
+        // 震动效果
+        SequentialAnimation on scale {
+            running: checkNotification.visible
+            NumberAnimation { from: 0.8; to: 1.1; duration: 150; easing.type: Easing.OutBack }
+            NumberAnimation { from: 1.1; to: 1.0; duration: 100 }
+        }
+
+        Text {
+            id: checkNotificationText
+            anchors.centerIn: parent
+            font.pixelSize: 24
+            font.bold: true
+            color: "white"
+            text: "将军！"
+        }
+
+        Timer {
+            id: checkNotificationTimer
+            interval: 2500
+            onTriggered: {
+                checkNotification.visible = false
+            }
+        }
     }
 
     // 求和通知
@@ -885,6 +950,119 @@ Rectangle {
             interval: 3000
             onTriggered: {
                 drawNotification.visible = false
+            }
+        }
+    }
+
+    // 和棋请求对话框
+    Rectangle {
+        id: drawRequestDialog
+        anchors.centerIn: parent
+        width: 400
+        height: 250
+        color: "#f5f5f5"
+        radius: 15
+        border.color: "#8b4513"
+        border.width: 3
+        visible: false
+        z: 200
+
+        // 背景遮罩
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -1000
+            color: "#80000000"
+            z: -1
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 25
+            spacing: 20
+
+            Text {
+                text: "对方提出和棋"
+                font.pixelSize: 28
+                font.bold: true
+                color: "#8b4513"
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 2
+                color: "#8b4513"
+            }
+
+            Text {
+                text: (chessBoardModel.isRedTurn ? "黑方" : "红方") + "提出和棋请求\n是否接受？"
+                font.pixelSize: 18
+                color: "#654321"
+                Layout.alignment: Qt.AlignHCenter
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+            }
+
+            Item { Layout.fillHeight: true }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 15
+
+                Button {
+                    text: "拒绝"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+
+                    contentItem: Text {
+                        text: parent.text
+                        font.pixelSize: 18
+                        font.bold: true
+                        color: "white"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    background: Rectangle {
+                        color: parent.pressed ? "#c94040" : (parent.hovered ? "#e05555" : "#ff6666")
+                        radius: 8
+                        border.color: "#b83030"
+                        border.width: 2
+                    }
+
+                    onClicked: {
+                        drawRequestDialog.visible = false
+                        chessBoardModel.declineDraw()
+                    }
+                }
+
+                Button {
+                    text: "接受"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+
+                    contentItem: Text {
+                        text: parent.text
+                        font.pixelSize: 18
+                        font.bold: true
+                        color: "white"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    background: Rectangle {
+                        color: parent.pressed ? "#4caf50" : (parent.hovered ? "#66bb6a" : "#81c784")
+                        radius: 8
+                        border.color: "#388e3c"
+                        border.width: 2
+                    }
+
+                    onClicked: {
+                        drawRequestDialog.visible = false
+                        chessBoardModel.acceptDraw()
+                    }
+                }
             }
         }
     }

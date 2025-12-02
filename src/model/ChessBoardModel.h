@@ -99,6 +99,8 @@ public:
     // 游戏操作
     Q_INVOKABLE void showHint();      // 显示提示（高亮当前可走位置）
     Q_INVOKABLE void offerDraw();     // 提出和棋
+    Q_INVOKABLE void acceptDraw();    // 接受和棋
+    Q_INVOKABLE void declineDraw();   // 拒绝和棋
     Q_INVOKABLE void resign();        // 认输
 
 signals:
@@ -114,6 +116,8 @@ signals:
     void moveCountChanged();                 // 步数改变
     void moveHistoryChanged();               // 历史记录改变
     void drawOffered(const QString &message);  // 提出和棋
+    void drawRequested();                      // 请求和棋（显示对话框）
+    void drawDeclined(const QString &message); // 拒绝和棋
     void hintShown();                        // 显示提示
     void aiEnabledChanged();                 // AI启用状态改变
     void aiThinkingChanged();                // AI思考状态改变

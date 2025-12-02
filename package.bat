@@ -11,9 +11,14 @@ chcp 65001 >nul
 
 :: Qt 安装路径
 set QT_PATH=C:\Code\QT\6.10.0\mingw_64\bin
+set QT_DIR=C:\Code\QT\6.10.0\mingw_64
+set MINGW_DIR=C:\Code\QT\Tools\mingw1310_64
+
+:: 添加 MinGW 到 PATH
+set PATH=%MINGW_DIR%\bin;%QT_DIR%\bin;%PATH%
 
 echo [1/9] 生成 Release 构建目录...
-cmake -B build-release -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cmake -B build-release -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=%QT_DIR%
 if %errorlevel% neq 0 (
     echo ❌ CMake 配置失败！
     pause

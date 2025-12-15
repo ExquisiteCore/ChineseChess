@@ -811,15 +811,31 @@ void ChessBoardModel::updateModelAfterMove(int fromRow, int fromCol, int toRow, 
 
 bool ChessBoardModel::hasAutoSave() const
 {
-    return m_databaseManager.hasAutoSave();
+    return m_databaseManager.hasAutoSave(m_currentGameMode);
+}
+
+bool ChessBoardModel::hasAutoSaveForMode(const QString &gameMode) const
+{
+    return m_databaseManager.hasAutoSave(gameMode);
 }
 
 bool ChessBoardModel::loadAutoSave()
 {
-    GameSave save = m_databaseManager.loadAutoSave();
+    return loadAutoSaveForMode(m_currentGameMode);
+}
+
+bool ChessBoardModel::loadAutoSaveForMode(const QString &gameMode)
+{
+    GameSave save = m_databaseManager.loadAutoSave(gameMode);
 
     if (save.id == 0) {
-        qWarning() << "没有找到自动存档";
+        qWarning() << "没有找到自动存档 [模式:" << gameMode << "]";
+        return false;
+    }
+
+    // 检查游戏是否已结束
+    if (save.isGameOver) {
+        qWarning() << "存档的游戏已结束，不加载";
         return false;
     }
 
@@ -836,7 +852,7 @@ bool ChessBoardModel::loadAutoSave()
     // 恢复回合
     setIsRedTurn(save.isRedTurn);
 
-    qDebug() << "成功加载自动存档，步数：" << save.moveCount;
+    qDebug() << "成功加载自动存档，步数：" << save.moveCount << ", 模式：" << save.gameMode;
     return true;
 }
 
@@ -847,6 +863,17 @@ void ChessBoardModel::triggerAutoSave()
 
 void ChessBoardModel::performAutoSave()
 {
+    // 检查游戏是否已结束，已结束的游戏不保存
+    GameState gameState = m_gameController.getGameState();
+    bool isGameOver = (gameState == GameState::Checkmate || 
+                       gameState == GameState::Stalemate || 
+                       gameState == GameState::Draw);
+
+    if (isGameOver) {
+        qDebug() << "游戏已结束，不自动保存";
+        return;
+    }
+
     // 获取移动历史（简化为JSON格式）
     QStringList history = moveHistory();
     QString historyJson = "[";
@@ -864,14 +891,25 @@ void ChessBoardModel::performAutoSave()
         m_currentGameMode,
         isRedTurn(),
         moveCount(),
-        historyJson
+        historyJson,
+        isGameOver
     );
 
     if (success) {
-        qDebug() << "自动保存成功";
+        qDebug() << "自动保存成功 [模式:" << m_currentGameMode << "]";
         emit hasAutoSaveChanged();
     } else {
         qWarning() << "自动保存失败";
+    }
+}
+
+void ChessBoardModel::clearAutoSave()
+{
+    if (m_databaseManager.clearAutoSave(m_currentGameMode)) {
+        qDebug() << "自动存档已清除 [模式:" << m_currentGameMode << "]";
+        emit hasAutoSaveChanged();
+    } else {
+        qWarning() << "清除自动存档失败";
     }
 }
 

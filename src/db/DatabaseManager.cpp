@@ -73,7 +73,8 @@ bool DatabaseManager::createTables()
             move_history TEXT,
             save_time DATETIME DEFAULT CURRENT_TIMESTAMP,
             description TEXT,
-            is_auto_save INTEGER DEFAULT 0
+            is_auto_save INTEGER DEFAULT 0,
+            is_game_over INTEGER DEFAULT 0
         )
     )";
 
@@ -123,18 +124,21 @@ bool DatabaseManager::autoSaveGame(const QString &fenString,
                                     const QString &gameMode,
                                     bool isRedTurn,
                                     int moveCount,
-                                    const QString &moveHistory)
+                                    const QString &moveHistory,
+                                    bool isGameOver)
 {
     QSqlQuery query(m_database);
 
-    // 先删除旧的自动存档
-    query.exec("DELETE FROM game_saves WHERE is_auto_save = 1");
+    // 先删除该游戏模式的旧自动存档
+    query.prepare("DELETE FROM game_saves WHERE is_auto_save = 1 AND game_mode = :mode");
+    query.bindValue(":mode", gameMode);
+    query.exec();
 
     // 插入新的自动存档
     query.prepare(R"(
         INSERT INTO game_saves (fen_string, game_mode, is_red_turn, move_count,
-                                move_history, description, is_auto_save)
-        VALUES (:fen, :mode, :turn, :count, :history, '自动存档', 1)
+                                move_history, description, is_auto_save, is_game_over)
+        VALUES (:fen, :mode, :turn, :count, :history, '自动存档', 1, :gameover)
     )");
 
     query.bindValue(":fen", fenString);
@@ -142,20 +146,22 @@ bool DatabaseManager::autoSaveGame(const QString &fenString,
     query.bindValue(":turn", isRedTurn ? 1 : 0);
     query.bindValue(":count", moveCount);
     query.bindValue(":history", moveHistory);
+    query.bindValue(":gameover", isGameOver ? 1 : 0);
 
     if (!query.exec()) {
         qCritical() << "自动保存失败:" << query.lastError().text();
         return false;
     }
 
-    qDebug() << "自动保存成功";
+    qDebug() << "自动保存成功 [模式:" << gameMode << ", 游戏结束:" << isGameOver << "]";
     return true;
 }
 
-bool DatabaseManager::hasAutoSave() const
+bool DatabaseManager::hasAutoSave(const QString &gameMode) const
 {
     QSqlQuery query(m_database);
-    query.prepare("SELECT COUNT(*) FROM game_saves WHERE is_auto_save = 1");
+    query.prepare("SELECT COUNT(*) FROM game_saves WHERE is_auto_save = 1 AND game_mode = :mode AND is_game_over = 0");
+    query.bindValue(":mode", gameMode);
 
     if (query.exec() && query.next()) {
         return query.value(0).toInt() > 0;
@@ -164,17 +170,18 @@ bool DatabaseManager::hasAutoSave() const
     return false;
 }
 
-GameSave DatabaseManager::loadAutoSave()
+GameSave DatabaseManager::loadAutoSave(const QString &gameMode)
 {
     QSqlQuery query(m_database);
     query.prepare(R"(
         SELECT id, fen_string, game_mode, is_red_turn, move_count,
-               move_history, save_time, description
+               move_history, save_time, description, is_game_over
         FROM game_saves
-        WHERE is_auto_save = 1
+        WHERE is_auto_save = 1 AND game_mode = :mode AND is_game_over = 0
         ORDER BY save_time DESC
         LIMIT 1
     )");
+    query.bindValue(":mode", gameMode);
 
     GameSave save;
 
@@ -187,11 +194,12 @@ GameSave DatabaseManager::loadAutoSave()
         save.moveHistory = query.value(5).toString();
         save.saveTime = query.value(6).toDateTime();
         save.description = query.value(7).toString();
+        save.isGameOver = query.value(8).toInt() == 1;
 
-        qDebug() << "加载自动存档成功:" << save.id;
+        qDebug() << "加载自动存档成功 [模式:" << gameMode << ", ID:" << save.id << "]";
         emit loadCompleted(true);
     } else {
-        qWarning() << "没有找到自动存档";
+        qWarning() << "没有找到自动存档 [模式:" << gameMode << "]";
         emit loadCompleted(false);
     }
 
@@ -293,5 +301,20 @@ bool DatabaseManager::clearAllSaves()
     }
 
     qDebug() << "所有存档已清空";
+    return true;
+}
+
+bool DatabaseManager::clearAutoSave(const QString &gameMode)
+{
+    QSqlQuery query(m_database);
+    query.prepare("DELETE FROM game_saves WHERE is_auto_save = 1 AND game_mode = :mode");
+    query.bindValue(":mode", gameMode);
+
+    if (!query.exec()) {
+        qCritical() << "清除自动存档失败:" << query.lastError().text();
+        return false;
+    }
+
+    qDebug() << "自动存档已清除 [模式:" << gameMode << "]";
     return true;
 }

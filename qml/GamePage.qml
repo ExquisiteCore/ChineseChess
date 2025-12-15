@@ -49,14 +49,19 @@ Rectangle {
     Component.onCompleted: {
         console.log("GamePage loaded with gameMode:", gameMode)
 
-        // 检查是否有自动存档
-        if (chessBoardModel.hasAutoSave) {
+        // 检查是否有对应模式的自动存档
+        if (chessBoardModel.hasAutoSaveForMode(gameMode)) {
             // 显示对话框询问是否加载存档
             loadSaveDialog.open()
         } else {
             // 没有存档，开始新游戏
             startNewGameSession()
         }
+    }
+
+    // 组件销毁时的清理
+    Component.onDestruction: {
+        console.log("GamePage destroyed, mode:", gameMode)
     }
 
     // 开始新游戏会话的函数
@@ -91,13 +96,15 @@ Rectangle {
         }
 
         onAccepted: {
-            // 加载自动存档
-            if (chessBoardModel.loadAutoSave()) {
-                console.log("成功加载存档")
+            // 加载对应模式的自动存档
+            if (chessBoardModel.loadAutoSaveForMode(gameMode)) {
+                console.log("成功加载存档，模式:", gameMode)
 
                 // 根据存档恢复游戏模式
                 if (gameMode === "single") {
                     chessBoardModel.aiEnabled = true
+                } else {
+                    chessBoardModel.aiEnabled = false
                 }
             } else {
                 console.log("加载存档失败，开始新游戏")
@@ -106,6 +113,8 @@ Rectangle {
         }
 
         onRejected: {
+            // 清除这个模式的存档，避免下次再问
+            chessBoardModel.clearAutoSave()
             // 开始新游戏
             startNewGameSession()
         }
@@ -145,7 +154,11 @@ Rectangle {
                     border.width: 1
                 }
 
-                onClicked: gamePage.backToMenu()
+                onClicked: {
+                    // 返回菜单前清除自动存档（用户主动退出游戏）
+                    chessBoardModel.clearAutoSave()
+                    gamePage.backToMenu()
+                }
             }
 
             Item { Layout.fillWidth: true }

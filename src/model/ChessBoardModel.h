@@ -108,8 +108,11 @@ public:
     Q_INVOKABLE void resign();        // 认输
 
     // 存档功能
-    Q_INVOKABLE bool loadAutoSave();  // 加载自动存档
+    Q_INVOKABLE bool hasAutoSaveForMode(const QString &gameMode) const;  // 检查指定模式是否有自动存档
+    Q_INVOKABLE bool loadAutoSave();  // 加载自动存档（使用当前游戏模式）
+    Q_INVOKABLE bool loadAutoSaveForMode(const QString &gameMode);  // 加载指定模式的自动存档
     Q_INVOKABLE void triggerAutoSave(); // 手动触发自动存档
+    Q_INVOKABLE void clearAutoSave();   // 清除当前模式的自动存档
 
 signals:
     void isRedTurnChanged();

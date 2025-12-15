@@ -17,8 +17,9 @@ struct GameSave {
     QString moveHistory;         // 移动历史（JSON格式）
     QDateTime saveTime;          // 保存时间
     QString description;         // 存档描述
+    bool isGameOver;             // 游戏是否结束
 
-    GameSave() : id(0), isRedTurn(true), moveCount(0) {}
+    GameSave() : id(0), isRedTurn(true), moveCount(0), isGameOver(false) {}
 };
 
 // 数据库管理器类
@@ -46,10 +47,11 @@ public:
                       const QString &gameMode,
                       bool isRedTurn,
                       int moveCount,
-                      const QString &moveHistory);
+                      const QString &moveHistory,
+                      bool isGameOver = false);
 
-    // 加载最近的自动存档
-    GameSave loadAutoSave();
+    // 加载最近的自动存档（按游戏模式）
+    GameSave loadAutoSave(const QString &gameMode);
 
     // 加载指定存档
     GameSave loadGame(int saveId);
@@ -63,8 +65,11 @@ public:
     // 清空所有存档
     bool clearAllSaves();
 
-    // 检查是否有自动存档
-    bool hasAutoSave() const;
+    // 检查是否有自动存档（按游戏模式）
+    bool hasAutoSave(const QString &gameMode) const;
+
+    // 清除自动存档（按游戏模式）
+    bool clearAutoSave(const QString &gameMode);
 
 signals:
     void saveCompleted(bool success);

@@ -66,17 +66,19 @@ Rectangle {
 
     // 开始新游戏会话的函数
     function startNewGameSession() {
-        // 重置游戏为初始状态
-        chessBoardModel.startNewGame()
-
-        // 设置游戏模式
+        // 先设置游戏模式（必须在startNewGame之前，以便正确设置m_currentGameMode）
         chessBoardModel.isTwoPlayerMode = (gameMode === "two")
         console.log("isTwoPlayerMode set to:", chessBoardModel.isTwoPlayerMode)
 
+        // 重置游戏为初始状态
+        chessBoardModel.startNewGame()
+
+        // 设置AI
         if (gameMode === "single") {
             chessBoardModel.aiEnabled = true
             console.log("AI enabled for single player mode")
         } else {
+            chessBoardModel.aiEnabled = false
             console.log("Two player mode - AI disabled")
         }
     }
